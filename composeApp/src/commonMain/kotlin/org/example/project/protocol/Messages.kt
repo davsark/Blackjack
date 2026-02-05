@@ -9,14 +9,19 @@ import kotlinx.serialization.Serializable
 sealed class ClientMessage {
     /**
      * El jugador se une al servidor
-     * @param playerName Nombre del jugador
-     * @param gameMode Modo de juego: "PVE" o "PVP"
      */
     @Serializable
     data class JoinGame(
         val playerName: String,
-        val gameMode: GameMode
+        val gameMode: GameMode,
+        val buyIn: Int = 1000
     ) : ClientMessage()
+
+    /**
+     * El jugador realiza una apuesta
+     */
+    @Serializable
+    data class PlaceBet(val amount: Int) : ClientMessage()
 
     /**
      * El jugador pide una carta (HIT)
@@ -29,6 +34,24 @@ sealed class ClientMessage {
      */
     @Serializable
     data object Stand : ClientMessage()
+
+    /**
+     * El jugador dobla su apuesta (DOUBLE)
+     */
+    @Serializable
+    data object Double : ClientMessage()
+
+    /**
+     * El jugador divide su mano (SPLIT)
+     */
+    @Serializable
+    data object Split : ClientMessage()
+
+    /**
+     * El jugador se rinde (SURRENDER)
+     */
+    @Serializable
+    data object Surrender : ClientMessage()
 
     /**
      * El jugador solicita empezar una nueva partida
@@ -56,24 +79,37 @@ sealed class ClientMessage {
 sealed class ServerMessage {
     /**
      * Confirmación de unión al juego
-     * @param playerId ID único asignado al jugador
-     * @param message Mensaje de bienvenida
      */
     @Serializable
     data class JoinConfirmation(
         val playerId: String,
-        val message: String
+        val message: String,
+        val initialChips: Int = 1000
+    ) : ServerMessage()
+
+    /**
+     * Estado de la mesa (enviado al conectar y cuando cambia)
+     */
+    @Serializable
+    data class TableState(
+        val players: List<PlayerInfo>,
+        val minBet: Int,
+        val maxBet: Int,
+        val currentPlayerChips: Int
+    ) : ServerMessage()
+
+    /**
+     * Solicitud de apuesta
+     */
+    @Serializable
+    data class RequestBet(
+        val minBet: Int,
+        val maxBet: Int,
+        val currentChips: Int
     ) : ServerMessage()
 
     /**
      * Estado completo del juego
-     * @param playerHand Cartas del jugador
-     * @param dealerHand Cartas del dealer (algunas ocultas)
-     * @param playerScore Puntuación del jugador
-     * @param dealerScore Puntuación del dealer (puede ser parcial)
-     * @param gameState Estado actual del juego
-     * @param canRequestCard Si el jugador puede pedir carta
-     * @param canStand Si el jugador puede plantarse
      */
     @Serializable
     data class GameState(
@@ -84,15 +120,20 @@ sealed class ServerMessage {
         val gameState: GamePhase,
         val canRequestCard: Boolean,
         val canStand: Boolean,
-        val otherPlayers: List<PlayerInfo> = emptyList() // Para PVP
+        val canDouble: Boolean = false,
+        val canSplit: Boolean = false,
+        val canSurrender: Boolean = false,
+        val currentBet: Int = 0,
+        val playerChips: Int = 1000,
+        val splitHand: List<Card>? = null,
+        val splitScore: Int? = null,
+        val activeSplitHand: Int = 0,
+        val bustProbability: Double = 0.0,
+        val otherPlayers: List<PlayerInfo> = emptyList()
     ) : ServerMessage()
 
     /**
      * Resultado final de la partida
-     * @param result Resultado: WIN, LOSE, PUSH
-     * @param playerFinalScore Puntuación final del jugador
-     * @param dealerFinalScore Puntuación final del dealer
-     * @param message Mensaje descriptivo del resultado
      */
     @Serializable
     data class GameResult(
@@ -100,12 +141,15 @@ sealed class ServerMessage {
         val playerFinalScore: Int,
         val dealerFinalScore: Int,
         val message: String,
-        val dealerFinalHand: List<Card> // Revelar cartas ocultas del dealer
+        val dealerFinalHand: List<Card>,
+        val payout: Int = 0,
+        val newChipsTotal: Int = 0,
+        val splitResult: GameResultType? = null,
+        val splitPayout: Int? = null
     ) : ServerMessage()
 
     /**
      * Lista de records
-     * @param records Lista de los mejores jugadores
      */
     @Serializable
     data class RecordsList(
@@ -114,7 +158,6 @@ sealed class ServerMessage {
 
     /**
      * Error del servidor
-     * @param errorMessage Descripción del error
      */
     @Serializable
     data class Error(
@@ -133,8 +176,8 @@ sealed class ServerMessage {
  */
 @Serializable
 enum class GameMode {
-    PVE, // Jugador vs Dealer (IA)
-    PVP  // Multijugador
+    PVE,
+    PVP
 }
 
 /**
@@ -142,10 +185,11 @@ enum class GameMode {
  */
 @Serializable
 enum class GamePhase {
-    WAITING,        // Esperando que empiece el juego
-    PLAYER_TURN,    // Turno del jugador
-    DEALER_TURN,    // Turno del dealer
-    GAME_OVER       // Juego terminado
+    WAITING,
+    BETTING,
+    PLAYER_TURN,
+    DEALER_TURN,
+    GAME_OVER
 }
 
 /**
@@ -153,10 +197,11 @@ enum class GamePhase {
  */
 @Serializable
 enum class GameResultType {
-    WIN,        // Jugador gana
-    LOSE,       // Jugador pierde
-    PUSH,       // Empate
-    BLACKJACK   // Jugador tiene Blackjack natural
+    WIN,
+    LOSE,
+    PUSH,
+    BLACKJACK,
+    SURRENDER
 }
 
 /**
@@ -166,10 +211,40 @@ enum class GameResultType {
 data class Card(
     val rank: Rank,
     val suit: Suit,
-    val hidden: Boolean = false // Para cartas ocultas del dealer
+    val hidden: Boolean = false
 ) {
     override fun toString(): String {
         return if (hidden) "[OCULTA]" else "${rank.symbol}${suit.symbol}"
+    }
+    
+    /**
+     * Nombre del archivo de imagen para esta carta
+     * Formato: card_{suit}_{rank} (ej: card_hearts_A, card_spades_02)
+     */
+    fun getImageName(): String {
+        if (hidden) return "card_back"
+        val rankName = when (rank) {
+            Rank.ACE -> "A"
+            Rank.TWO -> "02"
+            Rank.THREE -> "03"
+            Rank.FOUR -> "04"
+            Rank.FIVE -> "05"
+            Rank.SIX -> "06"
+            Rank.SEVEN -> "07"
+            Rank.EIGHT -> "08"
+            Rank.NINE -> "09"
+            Rank.TEN -> "10"
+            Rank.JACK -> "J"
+            Rank.QUEEN -> "Q"
+            Rank.KING -> "K"
+        }
+        val suitName = when (suit) {
+            Suit.HEARTS -> "hearts"
+            Suit.DIAMONDS -> "diamonds"
+            Suit.CLUBS -> "clubs"
+            Suit.SPADES -> "spades"
+        }
+        return "card_${suitName}_${rankName}"
     }
 }
 
@@ -203,9 +278,6 @@ enum class Rank(val symbol: String, val values: List<Int>) {
     QUEEN("Q", listOf(10)),
     KING("K", listOf(10));
 
-    /**
-     * Valor principal de la carta (para cartas sin As es único)
-     */
     val value: Int get() = values.first()
 }
 
@@ -218,7 +290,13 @@ data class Record(
     val wins: Int,
     val losses: Int,
     val blackjacks: Int,
-    val timestamp: Long
+    val timestamp: Long,
+    val maxChips: Int = 1000,
+    val currentStreak: Int = 0,
+    val bestStreak: Int = 0,
+    val totalGain: Int = 0,
+    val bestHand: String = "",
+    val gamesPlayed: Int = 0
 ) {
     val winRate: Double
         get() = if (wins + losses > 0) wins.toDouble() / (wins + losses) else 0.0
@@ -232,5 +310,36 @@ data class PlayerInfo(
     val playerName: String,
     val handSize: Int,
     val score: Int,
-    val hasStood: Boolean
+    val hasStood: Boolean,
+    val chips: Int = 1000,
+    val currentBet: Int = 0
+)
+
+/**
+ * Configuración del juego (enviada al cliente)
+ */
+@Serializable
+data class GameSettings(
+    val numberOfDecks: Int = 1,
+    val initialChips: Int = 1000,
+    val minBet: Int = 10,
+    val maxBet: Int = 500,
+    val blackjackPayout: Double = 1.5,
+    val dealerHitsOnSoft17: Boolean = false,
+    val allowDoubleAfterSplit: Boolean = true,
+    val allowSurrender: Boolean = true,
+    val maxSplits: Int = 3
+)
+
+/**
+ * Historial de una mano jugada
+ */
+@Serializable
+data class HandHistory(
+    val playerHand: List<Card>,
+    val dealerHand: List<Card>,
+    val result: GameResultType,
+    val bet: Int,
+    val payout: Int,
+    val timestamp: Long
 )

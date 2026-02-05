@@ -1,121 +1,179 @@
 package org.example.project.ui
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import org.example.project.protocol.Card
 import org.example.project.protocol.GamePhase
+import org.example.project.protocol.ServerMessage
+import org.example.project.ui.common.CardImage
 
 @Composable
 fun GameScreen(
-    gameState: org.example.project.protocol.ServerMessage.GameState,
+    gameState: ServerMessage.GameState,
     onRequestCard: () -> Unit,
     onStand: () -> Unit,
+    onDouble: () -> Unit,
+    onSplit: () -> Unit,
+    onSurrender: () -> Unit,
     onNewGame: () -> Unit,
     onShowRecords: () -> Unit,
     onDisconnect: () -> Unit
 ) {
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF1B5E20)) // Verde oscuro de mesa de casino
-            .padding(16.dp)
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF1B5E20),
+                        Color(0xFF2E7D32),
+                        Color(0xFF1B5E20)
+                    )
+                )
+            )
     ) {
-        // Barra superior
-        TopBar(
-            onShowRecords = onShowRecords,
-            onDisconnect = onDisconnect
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Mesa de juego
         Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
-            verticalArrangement = Arrangement.SpaceEvenly
+                .fillMaxSize()
+                .padding(16.dp)
         ) {
-            // Mano del Dealer
-            DealerHand(
-                cards = gameState.dealerHand,
-                score = gameState.dealerScore,
-                gamePhase = gameState.gameState
+            // Barra superior con fichas y apuesta
+            TopGameBar(
+                chips = gameState.playerChips,
+                currentBet = gameState.currentBet,
+                onShowRecords = onShowRecords,
+                onDisconnect = onDisconnect
             )
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // Mano del Jugador
-            PlayerHand(
-                cards = gameState.playerHand,
-                score = gameState.playerScore
+            // Mesa de juego
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                verticalArrangement = Arrangement.SpaceEvenly
+            ) {
+                // Mano del Dealer
+                DealerSection(
+                    cards = gameState.dealerHand,
+                    score = gameState.dealerScore,
+                    gamePhase = gameState.gameState
+                )
+
+                // Mano del Jugador
+                PlayerSection(
+                    cards = gameState.playerHand,
+                    score = gameState.playerScore,
+                    splitHand = gameState.splitHand,
+                    splitScore = gameState.splitScore,
+                    activeSplitHand = gameState.activeSplitHand,
+                    bustProbability = gameState.bustProbability
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Controles de juego
+            GameActionControls(
+                gamePhase = gameState.gameState,
+                canRequestCard = gameState.canRequestCard,
+                canStand = gameState.canStand,
+                canDouble = gameState.canDouble,
+                canSplit = gameState.canSplit,
+                canSurrender = gameState.canSurrender,
+                onRequestCard = onRequestCard,
+                onStand = onStand,
+                onDouble = onDouble,
+                onSplit = onSplit,
+                onSurrender = onSurrender,
+                onNewGame = onNewGame
             )
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Controles
-        GameControls(
-            canRequestCard = gameState.canRequestCard,
-            canStand = gameState.canStand,
-            gamePhase = gameState.gameState,
-            onRequestCard = onRequestCard,
-            onStand = onStand,
-            onNewGame = onNewGame
-        )
     }
 }
 
 @Composable
-fun TopBar(
+private fun TopGameBar(
+    chips: Int,
+    currentBet: Int,
     onShowRecords: () -> Unit,
     onDisconnect: () -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
+        // Título
         Text(
             text = "🎰 BLACKJACK",
-            style = MaterialTheme.typography.headlineMedium,
-            color = Color.White,
-            fontWeight = FontWeight.Bold
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFFFFD700)
         )
 
+        // Fichas y apuesta
         Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            OutlinedButton(
-                onClick = onShowRecords,
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = Color.White
-                )
-            ) {
-                Text("🏆 Records")
-            }
+            // Fichas
+            ChipDisplay(label = "Fichas", value = chips, color = Color(0xFF2ECC71))
+            
+            // Apuesta actual
+            ChipDisplay(label = "Apuesta", value = currentBet, color = Color(0xFFE74C3C))
+        }
 
-            OutlinedButton(
-                onClick = onDisconnect,
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = Color.White
-                )
-            ) {
-                Text("Desconectar")
+        // Botones de acción
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = onShowRecords) {
+                Text("🏆", fontSize = 20.sp)
+            }
+            TextButton(onClick = onDisconnect) {
+                Text("❌", fontSize = 20.sp)
             }
         }
     }
 }
 
 @Composable
-fun DealerHand(
+private fun ChipDisplay(label: String, value: Int, color: Color) {
+    Card(
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF2C3E50))
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = label,
+                fontSize = 10.sp,
+                color = Color.White.copy(alpha = 0.7f)
+            )
+            Text(
+                text = "$value",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = color
+            )
+        }
+    }
+}
+
+@Composable
+private fun DealerSection(
     cards: List<Card>,
     score: Int,
     gamePhase: GamePhase
@@ -126,41 +184,39 @@ fun DealerHand(
     ) {
         Text(
             text = "DEALER",
-            style = MaterialTheme.typography.titleLarge,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
             color = Color.White,
-            fontWeight = FontWeight.Bold
+            letterSpacing = 2.sp
         )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
+        
         Text(
-            text = if (gamePhase == GamePhase.GAME_OVER) {
-                "Puntuación: $score"
-            } else {
-                "Carta visible: $score"
-            },
-            style = MaterialTheme.typography.titleMedium,
-            color = Color.White
+            text = if (gamePhase == GamePhase.GAME_OVER) "Puntuación: $score" else "Mostrando: $score",
+            fontSize = 14.sp,
+            color = Color.White.copy(alpha = 0.8f),
+            modifier = Modifier.padding(vertical = 8.dp)
         )
-
-        Spacer(modifier = Modifier.height(16.dp))
 
         // Cartas del dealer
         Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy((-30).dp),
             modifier = Modifier.padding(horizontal = 16.dp)
         ) {
-            cards.forEach { card ->
-                CardView(card)
+            cards.forEachIndexed { index, card ->
+                CardView(card = card, elevation = index * 2)
             }
         }
     }
 }
 
 @Composable
-fun PlayerHand(
+private fun PlayerSection(
     cards: List<Card>,
-    score: Int
+    score: Int,
+    splitHand: List<Card>?,
+    splitScore: Int?,
+    activeSplitHand: Int,
+    bustProbability: Double
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -168,91 +224,83 @@ fun PlayerHand(
     ) {
         Text(
             text = "TU MANO",
-            style = MaterialTheme.typography.titleLarge,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
             color = Color.White,
-            fontWeight = FontWeight.Bold
+            letterSpacing = 2.sp
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = "Puntuación: $score",
-            style = MaterialTheme.typography.titleMedium,
-            color = when {
-                score == 21 -> Color(0xFFFFD700) // Dorado
-                score > 21 -> Color(0xFFFF5252) // Rojo
-                else -> Color.White
-            },
-            fontWeight = if (score == 21) FontWeight.Bold else FontWeight.Normal
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
+        // Puntuación con indicador de riesgo
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(vertical = 8.dp)
+        ) {
+            Text(
+                text = "Puntuación: ",
+                fontSize = 14.sp,
+                color = Color.White.copy(alpha = 0.8f)
+            )
+            Text(
+                text = "$score",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = when {
+                    score == 21 -> Color(0xFFFFD700)
+                    score > 21 -> Color(0xFFFF5252)
+                    else -> Color.White
+                }
+            )
+            
+            // Indicador de probabilidad de pasarse
+            if (bustProbability > 0 && score < 21) {
+                Spacer(modifier = Modifier.width(16.dp))
+                Text(
+                    text = "⚠️ ${(bustProbability * 100).toInt()}% riesgo",
+                    fontSize = 12.sp,
+                    color = when {
+                        bustProbability > 0.5 -> Color(0xFFFF5252)
+                        bustProbability > 0.3 -> Color(0xFFFFA726)
+                        else -> Color(0xFF4CAF50)
+                    }
+                )
+            }
+        }
 
         // Cartas del jugador
         Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy((-30).dp),
             modifier = Modifier.padding(horizontal = 16.dp)
         ) {
-            cards.forEach { card ->
-                CardView(card)
+            cards.forEachIndexed { index, card ->
+                CardView(
+                    card = card, 
+                    elevation = index * 2,
+                    highlighted = splitHand != null && activeSplitHand == 0
+                )
             }
         }
-    }
-}
 
-@Composable
-fun CardView(card: Card) {
-    val backgroundColor = if (card.hidden) {
-        Color(0xFF1976D2) // Azul para cartas ocultas
-    } else {
-        Color.White
-    }
-
-    val textColor = if (card.hidden) {
-        Color.White
-    } else {
-        when (card.suit.displayName) {
-            "Corazones", "Diamantes" -> Color.Red
-            else -> Color.Black
-        }
-    }
-
-    Card(
-        modifier = Modifier
-            .width(80.dp)
-            .height(120.dp),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = backgroundColor
-        )
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(8.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            if (card.hidden) {
-                Text(
-                    text = "?",
-                    style = MaterialTheme.typography.displayLarge,
-                    color = textColor,
-                    fontWeight = FontWeight.Bold
-                )
-            } else {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = card.rank.symbol,
-                        style = MaterialTheme.typography.headlineLarge,
-                        color = textColor,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = card.suit.symbol,
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = textColor
+        // Mano dividida (si existe)
+        if (splitHand != null && splitScore != null) {
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            Text(
+                text = "MANO DIVIDIDA (${splitScore})",
+                fontSize = 14.sp,
+                color = if (activeSplitHand == 1) Color(0xFFFFD700) else Color.White.copy(alpha = 0.6f),
+                fontWeight = if (activeSplitHand == 1) FontWeight.Bold else FontWeight.Normal
+            )
+            
+            Row(
+                horizontalArrangement = Arrangement.spacedBy((-30).dp),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                splitHand.forEachIndexed { index, card ->
+                    CardView(
+                        card = card, 
+                        elevation = index * 2,
+                        highlighted = activeSplitHand == 1
                     )
                 }
             }
@@ -261,16 +309,41 @@ fun CardView(card: Card) {
 }
 
 @Composable
-fun GameControls(
+fun CardView(
+    card: Card,
+    elevation: Int = 0,
+    highlighted: Boolean = false
+) {
+    Box(
+        modifier = Modifier.offset(y = if (highlighted) (-5).dp else 0.dp)
+    ) {
+        CardImage(
+            card = card,
+            cardWidth = 70.dp,
+            cardHeight = 100.dp
+        )
+    }
+}
+
+@Composable
+private fun GameActionControls(
+    gamePhase: GamePhase,
     canRequestCard: Boolean,
     canStand: Boolean,
-    gamePhase: GamePhase,
+    canDouble: Boolean,
+    canSplit: Boolean,
+    canSurrender: Boolean,
     onRequestCard: () -> Unit,
     onStand: () -> Unit,
+    onDouble: () -> Unit,
+    onSplit: () -> Unit,
+    onSurrender: () -> Unit,
     onNewGame: () -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF2C3E50))
     ) {
         Column(
             modifier = Modifier
@@ -280,51 +353,123 @@ fun GameControls(
         ) {
             when (gamePhase) {
                 GamePhase.PLAYER_TURN -> {
+                    // Fila principal: PEDIR y PLANTARSE
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Button(
-                            onClick = onRequestCard,
+                        ActionButton(
+                            text = "🎴 PEDIR",
                             enabled = canRequestCard,
+                            color = Color(0xFF2ECC71),
                             modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF4CAF50)
-                            )
-                        ) {
-                            Text("🎴 PEDIR", style = MaterialTheme.typography.titleMedium)
-                        }
-
-                        Button(
-                            onClick = onStand,
+                            onClick = onRequestCard
+                        )
+                        
+                        ActionButton(
+                            text = "✋ PLANTARSE",
                             enabled = canStand,
+                            color = Color(0xFFF39C12),
                             modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFFFF9800)
-                            )
-                        ) {
-                            Text("✋ PLANTARSE", style = MaterialTheme.typography.titleMedium)
-                        }
+                            onClick = onStand
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Fila secundaria: DOBLAR, DIVIDIR, RENDIRSE
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        ActionButton(
+                            text = "💰 DOBLAR",
+                            enabled = canDouble,
+                            color = Color(0xFF3498DB),
+                            modifier = Modifier.weight(1f),
+                            onClick = onDouble
+                        )
+                        
+                        ActionButton(
+                            text = "✂️ DIVIDIR",
+                            enabled = canSplit,
+                            color = Color(0xFF9B59B6),
+                            modifier = Modifier.weight(1f),
+                            onClick = onSplit
+                        )
+                        
+                        ActionButton(
+                            text = "🏳️ RENDIRSE",
+                            enabled = canSurrender,
+                            color = Color(0xFFE74C3C),
+                            modifier = Modifier.weight(1f),
+                            onClick = onSurrender
+                        )
                     }
                 }
 
                 GamePhase.DEALER_TURN -> {
                     Text(
                         text = "⏳ Turno del Dealer...",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.primary
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+
+                GamePhase.BETTING -> {
+                    Text(
+                        text = "💰 Realiza tu apuesta",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
                     )
                 }
 
                 else -> {
                     Button(
                         onClick = onNewGame,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2ECC71))
                     ) {
-                        Text("Nueva Partida", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            text = "🎮 Nueva Partida",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ActionButton(
+    text: String,
+    enabled: Boolean,
+    color: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier.height(50.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = color,
+            disabledContainerColor = Color.Gray.copy(alpha = 0.3f)
+        )
+    ) {
+        Text(
+            text = text,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            color = if (enabled) Color.White else Color.White.copy(alpha = 0.5f)
+        )
     }
 }

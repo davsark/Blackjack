@@ -1,13 +1,14 @@
 package org.example.project.model
 
+import org.example.project.config.GameConfig
 import org.example.project.protocol.Card
 import org.example.project.protocol.Rank
 import org.example.project.protocol.Suit
 
 /**
- * Representa una baraja de cartas estándar (52 cartas)
+ * Representa una baraja de cartas (soporta múltiples mazos)
  */
-class Deck {
+class Deck(private val numberOfDecks: Int = 1) {
     private val cards = mutableListOf<Card>()
 
     init {
@@ -15,13 +16,15 @@ class Deck {
     }
 
     /**
-     * Resetea la baraja con todas las 52 cartas
+     * Resetea la baraja con todas las cartas (52 * numberOfDecks)
      */
     fun reset() {
         cards.clear()
-        for (suit in Suit.entries) {
-            for (rank in Rank.entries) {
-                cards.add(Card(rank, suit, hidden = false))
+        repeat(numberOfDecks) {
+            for (suit in Suit.entries) {
+                for (rank in Rank.entries) {
+                    cards.add(Card(rank, suit, hidden = false))
+                }
             }
         }
     }
@@ -41,7 +44,9 @@ class Deck {
      */
     fun dealCard(hidden: Boolean = false): Card {
         if (cards.isEmpty()) {
-            throw IllegalStateException("No quedan cartas en la baraja")
+            // Auto-reset si se agotan las cartas
+            reset()
+            shuffle()
         }
         val card = cards.removeFirst()
         return card.copy(hidden = hidden)
@@ -54,11 +59,15 @@ class Deck {
 
     /**
      * Verifica si la baraja necesita ser reemplazada
-     * (normalmente cuando quedan menos de 15 cartas)
      */
-    fun needsReset(): Boolean = cards.size < 15
+    fun needsReset(): Boolean = cards.size < GameConfig.DECK_RESET_THRESHOLD
+
+    /**
+     * Total de cartas en un mazo completo
+     */
+    fun totalCards(): Int = 52 * numberOfDecks
 
     override fun toString(): String {
-        return "Deck(cartas restantes: ${cards.size})"
+        return "Deck(mazos: $numberOfDecks, cartas restantes: ${cards.size})"
     }
 }

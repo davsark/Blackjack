@@ -3,9 +3,11 @@ package org.example.project
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.lifecycle.viewmodel.compose.viewModel
+import org.example.project.protocol.GameMode
 import org.example.project.ui.*
 import org.example.project.viewmodel.GameUiState
 import org.example.project.viewmodel.GameViewModel
+import kotlin.system.exitProcess
 
 @Composable
 fun App() {
@@ -15,18 +17,45 @@ fun App() {
         val currentGameState by viewModel.currentGameState.collectAsState()
         val gameResult by viewModel.gameResult.collectAsState()
         val records by viewModel.records.collectAsState()
+        val betInfo by viewModel.betInfo.collectAsState()
+        val numberOfDecks by viewModel.numberOfDecks.collectAsState()
 
         when (uiState) {
-            is GameUiState.Disconnected -> {
+            is GameUiState.MainMenu -> {
+                MainMenuScreen(
+                    onPlayPVE = {
+                        viewModel.startPVE()
+                    },
+                    onPlayPVP = {
+                        viewModel.startPVP()
+                    },
+                    onShowRecords = {
+                        // Conectar primero para obtener records
+                        viewModel.connect("localhost", 9999)
+                    },
+                    onShowConfig = {
+                        viewModel.showConfig()
+                    },
+                    onExit = {
+                        exitProcess(0)
+                    }
+                )
+            }
+
+            is GameUiState.ShowingConfig -> {
+                ConfigScreen(
+                    currentDecks = numberOfDecks,
+                    onDecksChange = { viewModel.setNumberOfDecks(it) },
+                    onBack = { viewModel.backToMenu() }
+                )
+            }
+
+            is GameUiState.Connecting -> {
                 ConnectionScreen(
                     onConnect = { host, port ->
                         viewModel.connect(host, port)
                     }
                 )
-            }
-
-            is GameUiState.Connecting -> {
-                LoadingScreen("Conectando al servidor...")
             }
 
             is GameUiState.Connected -> {
@@ -41,12 +70,27 @@ fun App() {
                 LoadingScreen("Iniciando partida...")
             }
 
+            is GameUiState.Betting -> {
+                betInfo?.let { info ->
+                    BettingScreen(
+                        playerChips = info.playerChips,
+                        minBet = info.minBet,
+                        maxBet = info.maxBet,
+                        onPlaceBet = { amount -> viewModel.placeBet(amount) },
+                        onBack = { viewModel.disconnect() }
+                    )
+                } ?: LoadingScreen("Cargando...")
+            }
+
             is GameUiState.InGame -> {
                 currentGameState?.let { state ->
                     GameScreen(
                         gameState = state,
                         onRequestCard = { viewModel.requestCard() },
                         onStand = { viewModel.stand() },
+                        onDouble = { viewModel.double() },
+                        onSplit = { viewModel.split() },
+                        onSurrender = { viewModel.surrender() },
                         onNewGame = { viewModel.newGame() },
                         onShowRecords = { viewModel.requestRecords() },
                         onDisconnect = { viewModel.disconnect() }

@@ -99,6 +99,7 @@ object BlackjackGame {
                 }
             }
             GameResultType.PUSH -> "Empate. Ambos tenéis $playerValue"
+            GameResultType.SURRENDER -> "Te has rendido. Recuperas la mitad de tu apuesta"
         }
     }
 
@@ -144,6 +145,7 @@ object BlackjackGame {
                     wins++
                     blackjacks++
                 }
+                GameResultType.SURRENDER -> losses++
             }
         }
 

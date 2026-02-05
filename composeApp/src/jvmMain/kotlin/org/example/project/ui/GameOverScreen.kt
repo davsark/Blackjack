@@ -2,93 +2,131 @@ package org.example.project.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import org.example.project.protocol.Card
 import org.example.project.protocol.GameResultType
+import org.example.project.protocol.ServerMessage
 
 @Composable
 fun GameOverScreen(
-    gameState: org.example.project.protocol.ServerMessage.GameState,
-    gameResult: org.example.project.protocol.ServerMessage.GameResult,
+    gameState: ServerMessage.GameState,
+    gameResult: ServerMessage.GameResult,
     onNewGame: () -> Unit,
     onShowRecords: () -> Unit,
     onDisconnect: () -> Unit
 ) {
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF1B5E20))
-            .padding(16.dp)
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF1B5E20),
+                        Color(0xFF2E7D32),
+                        Color(0xFF1B5E20)
+                    )
+                )
+            )
     ) {
-        // Barra superior
-        TopBar(
-            onShowRecords = onShowRecords,
-            onDisconnect = onDisconnect
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Mesa de juego con resultado
         Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
-            verticalArrangement = Arrangement.SpaceEvenly,
-            horizontalAlignment = Alignment.CenterHorizontally
+                .fillMaxSize()
+                .padding(16.dp)
         ) {
-            // Resultado
-            ResultCard(gameResult)
+            // Barra superior
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "🎰 BLACKJACK",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFFFD700)
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = onShowRecords) {
+                        Text("🏆", fontSize = 20.sp)
+                    }
+                    TextButton(onClick = onDisconnect) {
+                        Text("❌", fontSize = 20.sp)
+                    }
+                }
+            }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // Mano del Dealer (todas las cartas reveladas)
-            DealerHand(
-                cards = gameResult.dealerFinalHand,
-                score = gameResult.dealerFinalScore,
-                gamePhase = org.example.project.protocol.GamePhase.GAME_OVER
-            )
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // Mano del Jugador
-            PlayerHand(
-                cards = gameState.playerHand,
-                score = gameResult.playerFinalScore
-            )
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Controles
-        Card(
-            modifier = Modifier.fillMaxWidth()
-        ) {
+            // Contenido principal
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                    .weight(1f),
+                verticalArrangement = Arrangement.SpaceEvenly,
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Button(
-                    onClick = onNewGame,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF4CAF50)
-                    )
-                ) {
-                    Text("🎴 Nueva Partida", style = MaterialTheme.typography.titleMedium)
-                }
+                // Tarjeta de resultado
+                ResultCard(gameResult)
 
-                OutlinedButton(
-                    onClick = onShowRecords,
-                    modifier = Modifier.fillMaxWidth()
+                // Mano del Dealer
+                HandDisplay(
+                    title = "DEALER",
+                    cards = gameResult.dealerFinalHand,
+                    score = gameResult.dealerFinalScore
+                )
+
+                // Mano del Jugador
+                HandDisplay(
+                    title = "TU MANO",
+                    cards = gameState.playerHand,
+                    score = gameResult.playerFinalScore
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Botones de acción
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF2C3E50))
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("🏆 Ver Records", style = MaterialTheme.typography.titleMedium)
+                    Button(
+                        onClick = onNewGame,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2ECC71))
+                    ) {
+                        Text(
+                            text = "🎮 Nueva Partida",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    OutlinedButton(
+                        onClick = onShowRecords,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("🏆 Ver Records", color = Color.White)
+                    }
                 }
             }
         }
@@ -96,101 +134,150 @@ fun GameOverScreen(
 }
 
 @Composable
-fun ResultCard(gameResult: org.example.project.protocol.ServerMessage.GameResult) {
+private fun HandDisplay(
+    title: String,
+    cards: List<Card>,
+    score: Int
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = title,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White,
+            letterSpacing = 2.sp
+        )
+        Text(
+            text = "Puntuación: $score",
+            fontSize = 14.sp,
+            color = when {
+                score == 21 -> Color(0xFFFFD700)
+                score > 21 -> Color(0xFFFF5252)
+                else -> Color.White.copy(alpha = 0.8f)
+            },
+            modifier = Modifier.padding(vertical = 4.dp)
+        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy((-20).dp)
+        ) {
+            cards.forEachIndexed { index, card ->
+                CardViewSmall(card = card, elevation = index * 2)
+            }
+        }
+    }
+}
+
+@Composable
+private fun CardViewSmall(card: Card, elevation: Int = 0) {
+    Card(
+        modifier = Modifier
+            .width(50.dp)
+            .height(70.dp),
+        shape = RoundedCornerShape(6.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = (2 + elevation).dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = card.rank.symbol,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = when (card.suit.displayName) {
+                        "Corazones", "Diamantes" -> Color.Red
+                        else -> Color.Black
+                    }
+                )
+                Text(
+                    text = card.suit.symbol,
+                    fontSize = 14.sp,
+                    color = when (card.suit.displayName) {
+                        "Corazones", "Diamantes" -> Color.Red
+                        else -> Color.Black
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ResultCard(gameResult: ServerMessage.GameResult) {
     val (emoji, resultText, backgroundColor) = when (gameResult.result) {
-        GameResultType.BLACKJACK -> Triple(
-            "🎰",
-            "¡BLACKJACK!",
-            Color(0xFFFFD700) // Dorado
-        )
-        GameResultType.WIN -> Triple(
-            "🎉",
-            "¡GANASTE!",
-            Color(0xFF4CAF50) // Verde
-        )
-        GameResultType.LOSE -> Triple(
-            "💔",
-            "PERDISTE",
-            Color(0xFFF44336) // Rojo
-        )
-        GameResultType.PUSH -> Triple(
-            "🤝",
-            "EMPATE",
-            Color(0xFFFF9800) // Naranja
-        )
+        GameResultType.BLACKJACK -> Triple("🎰", "¡BLACKJACK!", Color(0xFFFFD700))
+        GameResultType.WIN -> Triple("🎉", "¡GANASTE!", Color(0xFF2ECC71))
+        GameResultType.LOSE -> Triple("💔", "PERDISTE", Color(0xFFE74C3C))
+        GameResultType.PUSH -> Triple("🤝", "EMPATE", Color(0xFFF39C12))
+        GameResultType.SURRENDER -> Triple("🏳️", "RENDICIÓN", Color(0xFF9E9E9E))
     }
 
     Card(
         modifier = Modifier
-            .widthIn(max = 500.dp)
+            .widthIn(max = 400.dp)
             .fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = backgroundColor
-        )
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = backgroundColor)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(24.dp),
+                .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = emoji,
-                style = MaterialTheme.typography.displayLarge
-            )
-
+            Text(text = emoji, fontSize = 48.sp)
+            
             Spacer(modifier = Modifier.height(8.dp))
-
+            
             Text(
                 text = resultText,
-                style = MaterialTheme.typography.displayMedium,
+                fontSize = 28.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             Text(
                 text = gameResult.message,
-                style = MaterialTheme.typography.titleLarge,
-                color = Color.White
+                fontSize = 14.sp,
+                color = Color.White.copy(alpha = 0.9f)
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
+            // Pago y fichas
             Row(
-                horizontalArrangement = Arrangement.spacedBy(32.dp)
+                horizontalArrangement = Arrangement.spacedBy(24.dp)
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = "Tu mano",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = Color.White.copy(alpha = 0.9f)
+                        text = "Pago",
+                        fontSize = 12.sp,
+                        color = Color.White.copy(alpha = 0.7f)
                     )
                     Text(
-                        text = "${gameResult.playerFinalScore}",
-                        style = MaterialTheme.typography.headlineLarge,
+                        text = if (gameResult.payout >= 0) "+${gameResult.payout}" else "${gameResult.payout}",
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = if (gameResult.payout >= 0) Color.White else Color(0xFFFFCDD2)
                     )
                 }
-
-                Text(
-                    text = "VS",
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = Color.White,
-                    modifier = Modifier.align(Alignment.CenterVertically)
-                )
-
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = "Dealer",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = Color.White.copy(alpha = 0.9f)
+                        text = "Fichas",
+                        fontSize = 12.sp,
+                        color = Color.White.copy(alpha = 0.7f)
                     )
                     Text(
-                        text = "${gameResult.dealerFinalScore}",
-                        style = MaterialTheme.typography.headlineLarge,
+                        text = "${gameResult.newChipsTotal}",
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )

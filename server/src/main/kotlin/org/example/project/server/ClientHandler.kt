@@ -3,6 +3,7 @@ package org.example.project.server
 import kotlinx.coroutines.*
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import org.example.project.config.GameConfig
 import org.example.project.model.Deck
 import org.example.project.protocol.*
 import java.io.BufferedReader
@@ -19,7 +20,8 @@ import java.util.*
  */
 class ClientHandler(
     private val socket: Socket,
-    private val recordsManager: RecordsManager
+    private val recordsManager: RecordsManager,
+    private val gameSettings: GameSettings
 ) {
     private val playerId = UUID.randomUUID().toString()
     private var playerName: String = "Jugador"
@@ -27,9 +29,15 @@ class ClientHandler(
     private lateinit var output: BufferedWriter
     private val json = Json { ignoreUnknownKeys = true }
 
-    private val deck = Deck()
+    // Estado del juego
+    private val deck = Deck(gameSettings.numberOfDecks)
     private lateinit var dealerAI: DealerAI
     private var gameMode: GameMode? = null
+    
+    // Sistema de fichas y apuestas
+    private var playerChips: Int = gameSettings.initialChips
+    private var currentBet: Int = 0
+    private var isInGame: Boolean = false
 
     init {
         deck.shuffle()
@@ -45,7 +53,7 @@ class ClientHandler(
             output = BufferedWriter(OutputStreamWriter(socket.getOutputStream()))
 
             // Configurar timeout
-            socket.soTimeout = 60_000 // 60 segundos
+            socket.soTimeout = GameConfig.CONNECTION_TIMEOUT_MS.toInt()
 
             println("✅ Cliente conectado: ${socket.inetAddress.hostAddress}:${socket.port}")
 
@@ -87,8 +95,12 @@ class ClientHandler(
     private suspend fun handleMessage(message: ClientMessage) {
         when (message) {
             is ClientMessage.JoinGame -> handleJoinGame(message)
+            is ClientMessage.PlaceBet -> handlePlaceBet(message)
             is ClientMessage.RequestCard -> handleRequestCard()
             is ClientMessage.Stand -> handleStand()
+            is ClientMessage.Double -> handleDouble()
+            is ClientMessage.Split -> handleSplit()
+            is ClientMessage.Surrender -> handleSurrender()
             is ClientMessage.NewGame -> handleNewGame()
             is ClientMessage.RequestRecords -> handleRequestRecords()
             is ClientMessage.Ping -> handlePing()
@@ -101,40 +113,96 @@ class ClientHandler(
     private suspend fun handleJoinGame(message: ClientMessage.JoinGame) {
         playerName = message.playerName
         gameMode = message.gameMode
+        playerChips = message.buyIn.coerceIn(0, gameSettings.initialChips)
 
-        println("👤 $playerName se une (Modo: ${message.gameMode})")
+        println("👤 $playerName se une (Modo: ${message.gameMode}, Fichas: $playerChips)")
 
         when (message.gameMode) {
             GameMode.PVE -> {
-                dealerAI = DealerAI(deck)
+                dealerAI = DealerAI(deck, gameSettings)
                 sendMessage(ServerMessage.JoinConfirmation(
                     playerId = playerId,
-                    message = "Bienvenido $playerName. Modo: Jugador vs Dealer"
+                    message = "Bienvenido $playerName. Modo: Jugador vs Dealer",
+                    initialChips = playerChips
                 ))
-                // Iniciar partida automáticamente
-                startPVEGame()
+                // Enviar estado de la mesa
+                sendMessage(ServerMessage.TableState(
+                    players = listOf(PlayerInfo(playerName, 0, 0, false, playerChips, 0)),
+                    minBet = gameSettings.minBet,
+                    maxBet = gameSettings.maxBet,
+                    currentPlayerChips = playerChips
+                ))
+                // Solicitar apuesta
+                sendMessage(ServerMessage.RequestBet(
+                    minBet = gameSettings.minBet,
+                    maxBet = minOf(gameSettings.maxBet, playerChips),
+                    currentChips = playerChips
+                ))
             }
             GameMode.PVP -> {
+                dealerAI = DealerAI(deck, gameSettings)
                 sendMessage(ServerMessage.JoinConfirmation(
                     playerId = playerId,
-                    message = "Bienvenido $playerName. Modo PVP (En desarrollo)"
+                    message = "Bienvenido $playerName. Modo PVP - Compitiendo contra otros jugadores",
+                    initialChips = playerChips
                 ))
-                sendError("Modo PVP aún no implementado completamente. Usa PVE.")
+                sendMessage(ServerMessage.TableState(
+                    players = listOf(PlayerInfo(playerName, 0, 0, false, playerChips, 0)),
+                    minBet = gameSettings.minBet,
+                    maxBet = gameSettings.maxBet,
+                    currentPlayerChips = playerChips
+                ))
+                sendMessage(ServerMessage.RequestBet(
+                    minBet = gameSettings.minBet,
+                    maxBet = minOf(gameSettings.maxBet, playerChips),
+                    currentChips = playerChips
+                ))
             }
         }
+        
+        // Enviar records al conectar
+        handleRequestRecords()
     }
 
     /**
-     * Inicia una nueva partida PVE
+     * Maneja la apuesta del jugador
      */
-    private suspend fun startPVEGame() {
+    private suspend fun handlePlaceBet(message: ClientMessage.PlaceBet) {
+        val betAmount = message.amount
+        
+        // Validar apuesta
+        if (betAmount < gameSettings.minBet) {
+            sendError("La apuesta mínima es ${gameSettings.minBet}")
+            return
+        }
+        if (betAmount > playerChips) {
+            sendError("No tienes suficientes fichas. Tienes: $playerChips")
+            return
+        }
+        if (betAmount > gameSettings.maxBet) {
+            sendError("La apuesta máxima es ${gameSettings.maxBet}")
+            return
+        }
+        
+        currentBet = betAmount
+        isInGame = true
+        println("💰 $playerName apuesta $currentBet fichas")
+        
+        // Iniciar la partida
+        startGame()
+    }
+
+    /**
+     * Inicia una nueva partida después de la apuesta
+     */
+    private suspend fun startGame() {
         dealerAI.checkAndResetDeck()
-        val gameState = dealerAI.startNewGame(playerId)
+        val gameState = dealerAI.startNewGame(playerId, currentBet, playerChips)
         sendMessage(gameState)
 
         // Verificar si hay Blackjack natural
         if (gameState.playerScore == 21 && gameState.playerHand.size == 2) {
-            delay(500) // Pequeña pausa para que el cliente procese el estado
+            delay(500)
             finishGame()
         }
     }
@@ -143,7 +211,7 @@ class ClientHandler(
      * Maneja la petición de carta
      */
     private suspend fun handleRequestCard() {
-        if (gameMode != GameMode.PVE || !::dealerAI.isInitialized) {
+        if (!isInGame || !::dealerAI.isInitialized) {
             sendError("No hay juego activo")
             return
         }
@@ -161,7 +229,7 @@ class ClientHandler(
      * Maneja cuando el jugador se planta
      */
     private suspend fun handleStand() {
-        if (gameMode != GameMode.PVE || !::dealerAI.isInitialized) {
+        if (!isInGame || !::dealerAI.isInitialized) {
             sendError("No hay juego activo")
             return
         }
@@ -174,25 +242,155 @@ class ClientHandler(
     }
 
     /**
+     * Maneja cuando el jugador dobla
+     */
+    private suspend fun handleDouble() {
+        if (!isInGame || !::dealerAI.isInitialized) {
+            sendError("No hay juego activo")
+            return
+        }
+        
+        // Verificar que puede doblar
+        if (currentBet > playerChips - currentBet) {
+            sendError("No tienes suficientes fichas para doblar")
+            return
+        }
+
+        val result = dealerAI.playerDouble(playerId)
+        if (result == null) {
+            sendError("No puedes doblar en este momento")
+            return
+        }
+        
+        currentBet *= 2
+        println("🎲 $playerName dobla. Nueva apuesta: $currentBet")
+        
+        sendMessage(result)
+        delay(500)
+        finishGame()
+    }
+
+    /**
+     * Maneja cuando el jugador divide
+     */
+    private suspend fun handleSplit() {
+        if (!isInGame || !::dealerAI.isInitialized) {
+            sendError("No hay juego activo")
+            return
+        }
+        
+        // Verificar que puede dividir
+        if (currentBet > playerChips - currentBet) {
+            sendError("No tienes suficientes fichas para dividir")
+            return
+        }
+
+        val result = dealerAI.playerSplit(playerId)
+        if (result == null) {
+            sendError("No puedes dividir en este momento (necesitas dos cartas del mismo valor)")
+            return
+        }
+        
+        println("✂️ $playerName divide su mano")
+        sendMessage(result)
+    }
+
+    /**
+     * Maneja cuando el jugador se rinde
+     */
+    private suspend fun handleSurrender() {
+        if (!isInGame || !::dealerAI.isInitialized) {
+            sendError("No hay juego activo")
+            return
+        }
+
+        if (!gameSettings.allowSurrender) {
+            sendError("La rendición no está permitida en esta mesa")
+            return
+        }
+
+        val result = dealerAI.playerSurrender(playerId)
+        if (result == null) {
+            sendError("No puedes rendirte en este momento")
+            return
+        }
+        
+        // Devolver mitad de la apuesta
+        val refund = currentBet / 2
+        playerChips += refund
+        isInGame = false
+        
+        println("🏳️ $playerName se rinde. Recupera $refund fichas")
+        sendMessage(result)
+        
+        // Solicitar nueva apuesta si tiene fichas
+        if (playerChips >= gameSettings.minBet) {
+            sendMessage(ServerMessage.RequestBet(
+                minBet = gameSettings.minBet,
+                maxBet = minOf(gameSettings.maxBet, playerChips),
+                currentChips = playerChips
+            ))
+        }
+    }
+
+    /**
      * Finaliza el juego y envía el resultado
      */
     private suspend fun finishGame() {
-        val result = dealerAI.getGameResult(playerId)
+        val result = dealerAI.getGameResult(playerId, currentBet, playerChips)
+        
+        // Actualizar fichas
+        playerChips = result.newChipsTotal
+        isInGame = false
+        
+        println("🏆 Resultado para $playerName: ${result.result} | Pago: ${result.payout} | Fichas: $playerChips")
+        
         sendMessage(result)
 
         // Guardar en records
-        recordsManager.recordGameResult(playerName, result.result)
+        recordsManager.recordGameResult(
+            playerName = playerName,
+            result = result.result,
+            bet = currentBet,
+            payout = result.payout,
+            finalChips = playerChips
+        )
+        
+        currentBet = 0
+        
+        // Solicitar nueva apuesta si tiene fichas
+        if (playerChips >= gameSettings.minBet) {
+            delay(1000)
+            sendMessage(ServerMessage.RequestBet(
+                minBet = gameSettings.minBet,
+                maxBet = minOf(gameSettings.maxBet, playerChips),
+                currentChips = playerChips
+            ))
+        } else {
+            sendMessage(ServerMessage.Error("¡Te has quedado sin fichas! Inicia una nueva sesión para continuar."))
+        }
     }
 
     /**
      * Maneja la solicitud de nueva partida
      */
     private suspend fun handleNewGame() {
-        if (gameMode == GameMode.PVE && ::dealerAI.isInitialized) {
-            startPVEGame()
-        } else {
+        if (gameMode == null || !::dealerAI.isInitialized) {
             sendError("Debes unirte primero al juego")
+            return
         }
+        
+        if (playerChips < gameSettings.minBet) {
+            // Restaurar fichas iniciales para nueva sesión
+            playerChips = gameSettings.initialChips
+            println("🔄 $playerName reinicia con ${gameSettings.initialChips} fichas")
+        }
+        
+        sendMessage(ServerMessage.RequestBet(
+            minBet = gameSettings.minBet,
+            maxBet = minOf(gameSettings.maxBet, playerChips),
+            currentChips = playerChips
+        ))
     }
 
     /**

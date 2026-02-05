@@ -9,14 +9,13 @@ dependencies {
     implementation(project(":composeApp"))
 
     // Corrutinas
-    implementation(libs.kotlinx.coroutinesCore)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
 
     // Serialización JSON
-    implementation(libs.kotlinx.serializationJson)
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 
     // Testing
-    testImplementation(libs.kotlin.test)
-    testImplementation(libs.junit)
+    testImplementation(kotlin("test"))
 }
 
 application {

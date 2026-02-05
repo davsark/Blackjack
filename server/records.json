@@ -1,0 +1,16 @@
+[
+    {
+        "playerName": "david",
+        "wins": 4,
+        "losses": 4,
+        "blackjacks": 2,
+        "timestamp": 1770309876247
+    },
+    {
+        "playerName": "David",
+        "wins": 2,
+        "losses": 3,
+        "blackjacks": 0,
+        "timestamp": 1770312056576
+    }
+]

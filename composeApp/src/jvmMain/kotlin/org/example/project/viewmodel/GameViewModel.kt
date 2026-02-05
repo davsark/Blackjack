@@ -14,7 +14,7 @@ class GameViewModel : ViewModel() {
     private val gameClient = GameClient()
 
     // Estado de la UI
-    private val _uiState = MutableStateFlow<GameUiState>(GameUiState.Disconnected)
+    private val _uiState = MutableStateFlow<GameUiState>(GameUiState.MainMenu)
     val uiState: StateFlow<GameUiState> = _uiState.asStateFlow()
 
     // Estado del juego actual
@@ -32,6 +32,18 @@ class GameViewModel : ViewModel() {
     // Información del jugador
     private val _playerId = MutableStateFlow<String?>(null)
     val playerId: StateFlow<String?> = _playerId.asStateFlow()
+
+    // Información de apuestas
+    private val _betInfo = MutableStateFlow<BetInfo?>(null)
+    val betInfo: StateFlow<BetInfo?> = _betInfo.asStateFlow()
+
+    // Configuración
+    private val _numberOfDecks = MutableStateFlow(1)
+    val numberOfDecks: StateFlow<Int> = _numberOfDecks.asStateFlow()
+
+    // Modo de juego seleccionado
+    private var selectedGameMode: GameMode = GameMode.PVE
+    private var playerName: String = ""
 
     init {
         // Observar mensajes del servidor
@@ -53,8 +65,8 @@ class GameViewModel : ViewModel() {
         // Observar estado de conexión
         viewModelScope.launch {
             gameClient.isConnected.collect { connected ->
-                if (!connected && _uiState.value !is GameUiState.Disconnected) {
-                    _uiState.value = GameUiState.Disconnected
+                if (!connected && _uiState.value !is GameUiState.MainMenu && _uiState.value !is GameUiState.Error) {
+                    _uiState.value = GameUiState.MainMenu
                 }
             }
         }
@@ -70,18 +82,46 @@ class GameViewModel : ViewModel() {
             if (success) {
                 _uiState.value = GameUiState.Connected
             } else {
-                _uiState.value = GameUiState.Disconnected
+                _uiState.value = GameUiState.MainMenu
             }
         }
+    }
+
+    /**
+     * Inicia el flujo de PVE
+     */
+    fun startPVE() {
+        selectedGameMode = GameMode.PVE
+        _uiState.value = GameUiState.Connecting
+    }
+
+    /**
+     * Inicia el flujo de PVP
+     */
+    fun startPVP() {
+        selectedGameMode = GameMode.PVP
+        _uiState.value = GameUiState.Connecting
     }
 
     /**
      * Se une al juego
      */
     fun joinGame(playerName: String, gameMode: GameMode) {
+        this.playerName = playerName
+        this.selectedGameMode = gameMode
         viewModelScope.launch {
             val message = ClientMessage.JoinGame(playerName, gameMode)
             gameClient.sendMessage(message)
+            _uiState.value = GameUiState.WaitingForGame
+        }
+    }
+
+    /**
+     * Realiza una apuesta
+     */
+    fun placeBet(amount: Int) {
+        viewModelScope.launch {
+            gameClient.sendMessage(ClientMessage.PlaceBet(amount))
             _uiState.value = GameUiState.WaitingForGame
         }
     }
@@ -105,6 +145,33 @@ class GameViewModel : ViewModel() {
     }
 
     /**
+     * Dobla la apuesta
+     */
+    fun double() {
+        viewModelScope.launch {
+            gameClient.sendMessage(ClientMessage.Double)
+        }
+    }
+
+    /**
+     * Divide la mano
+     */
+    fun split() {
+        viewModelScope.launch {
+            gameClient.sendMessage(ClientMessage.Split)
+        }
+    }
+
+    /**
+     * Se rinde
+     */
+    fun surrender() {
+        viewModelScope.launch {
+            gameClient.sendMessage(ClientMessage.Surrender)
+        }
+    }
+
+    /**
      * Solicita una nueva partida
      */
     fun newGame() {
@@ -124,23 +191,65 @@ class GameViewModel : ViewModel() {
     }
 
     /**
+     * Muestra la configuración
+     */
+    fun showConfig() {
+        _uiState.value = GameUiState.ShowingConfig
+    }
+
+    /**
+     * Actualiza el número de mazos
+     */
+    fun setNumberOfDecks(decks: Int) {
+        _numberOfDecks.value = decks
+    }
+
+    /**
      * Maneja los mensajes del servidor
      */
     private fun handleServerMessage(message: ServerMessage) {
         when (message) {
             is ServerMessage.JoinConfirmation -> {
                 _playerId.value = message.playerId
-                _uiState.value = GameUiState.InGame
+                _betInfo.value = _betInfo.value?.copy(currentChips = message.initialChips)
+                    ?: BetInfo(message.initialChips, 10, 500, message.initialChips)
                 println("✅ ${message.message}")
+            }
+
+            is ServerMessage.TableState -> {
+                _betInfo.value = BetInfo(
+                    currentChips = message.currentPlayerChips,
+                    minBet = message.minBet,
+                    maxBet = message.maxBet,
+                    playerChips = message.currentPlayerChips
+                )
+            }
+
+            is ServerMessage.RequestBet -> {
+                _betInfo.value = BetInfo(
+                    currentChips = message.currentChips,
+                    minBet = message.minBet,
+                    maxBet = message.maxBet,
+                    playerChips = message.currentChips
+                )
+                _uiState.value = GameUiState.Betting
             }
 
             is ServerMessage.GameState -> {
                 _currentGameState.value = message
+                _betInfo.value = _betInfo.value?.copy(
+                    currentChips = message.playerChips,
+                    playerChips = message.playerChips
+                )
                 _uiState.value = GameUiState.InGame
             }
 
             is ServerMessage.GameResult -> {
                 _gameResult.value = message
+                _betInfo.value = _betInfo.value?.copy(
+                    currentChips = message.newChipsTotal,
+                    playerChips = message.newChipsTotal
+                )
                 _uiState.value = GameUiState.GameOver
             }
 
@@ -155,7 +264,7 @@ class GameViewModel : ViewModel() {
             }
 
             is ServerMessage.Pong -> {
-                // Ignorar por ahora
+                // Ignorar
             }
         }
         gameClient.clearLastMessage()
@@ -167,9 +276,13 @@ class GameViewModel : ViewModel() {
     fun clearError() {
         if (_uiState.value is GameUiState.Error) {
             _uiState.value = if (gameClient.isConnected.value) {
-                GameUiState.Connected
+                if (_currentGameState.value != null) {
+                    GameUiState.InGame
+                } else {
+                    GameUiState.Connected
+                }
             } else {
-                GameUiState.Disconnected
+                GameUiState.MainMenu
             }
         }
         gameClient.clearError()
@@ -179,11 +292,19 @@ class GameViewModel : ViewModel() {
      * Vuelve al juego desde la pantalla de records
      */
     fun backToGame() {
-        _uiState.value = if (_currentGameState.value != null) {
-            GameUiState.InGame
-        } else {
-            GameUiState.Connected
+        _uiState.value = when {
+            _currentGameState.value != null -> GameUiState.InGame
+            _betInfo.value != null && gameClient.isConnected.value -> GameUiState.Betting
+            gameClient.isConnected.value -> GameUiState.Connected
+            else -> GameUiState.MainMenu
         }
+    }
+
+    /**
+     * Vuelve al menú principal
+     */
+    fun backToMenu() {
+        _uiState.value = GameUiState.MainMenu
     }
 
     /**
@@ -191,10 +312,11 @@ class GameViewModel : ViewModel() {
      */
     fun disconnect() {
         gameClient.disconnect()
-        _uiState.value = GameUiState.Disconnected
+        _uiState.value = GameUiState.MainMenu
         _currentGameState.value = null
         _gameResult.value = null
         _playerId.value = null
+        _betInfo.value = null
     }
 
     override fun onCleared() {
@@ -207,12 +329,24 @@ class GameViewModel : ViewModel() {
  * Estados de la UI
  */
 sealed class GameUiState {
-    data object Disconnected : GameUiState()
+    data object MainMenu : GameUiState()
+    data object ShowingConfig : GameUiState()
     data object Connecting : GameUiState()
     data object Connected : GameUiState()
     data object WaitingForGame : GameUiState()
+    data object Betting : GameUiState()
     data object InGame : GameUiState()
     data object GameOver : GameUiState()
     data object ShowingRecords : GameUiState()
     data class Error(val message: String) : GameUiState()
 }
+
+/**
+ * Información de apuestas
+ */
+data class BetInfo(
+    val currentChips: Int,
+    val minBet: Int,
+    val maxBet: Int,
+    val playerChips: Int
+)

@@ -2,38 +2,73 @@ package org.example.project.server
 
 import kotlinx.coroutines.*
 import org.example.project.config.GameConfig
+import org.example.project.protocol.GameSettings
 import java.io.File
+import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.SocketException
 import java.util.*
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Servidor principal del juego de Blackjack
  * Acepta conexiones de clientes y las maneja con corrutinas
  */
-class GameServer(private val port: Int = GameConfig.DEFAULT_SERVER_PORT) {
+class GameServer {
     private var serverSocket: ServerSocket? = null
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val recordsManager: RecordsManager
     private var isRunning = false
+    
+    // Configuración cargada desde archivo
+    private val config: Map<String, String>
+    private val host: String
+    private val port: Int
+    private val maxClients: Int
+    private val currentClients = AtomicInteger(0)
+    
+    // Configuración del juego
+    val gameSettings: GameSettings
 
     init {
         // Cargar configuración
-        val config = loadConfiguration()
+        config = loadConfiguration()
+        host = config["server.host"] ?: GameConfig.DEFAULT_SERVER_HOST
+        port = config["server.port"]?.toIntOrNull() ?: GameConfig.DEFAULT_SERVER_PORT
+        maxClients = config["max.clients"]?.toIntOrNull() ?: GameConfig.MAX_CLIENTS
+        
         val recordsFile = config["server.recordsFile"] ?: "records.json"
         recordsManager = RecordsManager(recordsFile)
+        
+        // Configuración del juego
+        gameSettings = GameSettings(
+            numberOfDecks = config["game.numberOfDecks"]?.toIntOrNull() ?: GameConfig.DEFAULT_NUMBER_OF_DECKS,
+            initialChips = config["game.initialChips"]?.toIntOrNull() ?: GameConfig.INITIAL_CHIPS,
+            minBet = config["game.minBet"]?.toIntOrNull() ?: GameConfig.MIN_BET,
+            maxBet = config["game.maxBet"]?.toIntOrNull() ?: GameConfig.MAX_BET,
+            blackjackPayout = config["game.blackjackPayout"]?.toDoubleOrNull() ?: GameConfig.BLACKJACK_PAYOUT,
+            dealerHitsOnSoft17 = config["game.dealerHitsOnSoft17"]?.toBoolean() ?: GameConfig.DEALER_HITS_ON_SOFT_17,
+            allowDoubleAfterSplit = GameConfig.ALLOW_DOUBLE_AFTER_SPLIT,
+            allowSurrender = GameConfig.ALLOW_SURRENDER,
+            maxSplits = GameConfig.MAX_SPLITS
+        )
 
         println("📋 Configuración del servidor:")
-        config.forEach { (key, value) ->
-            println("   $key = $value")
-        }
+        println("   Host: $host")
+        println("   Puerto: $port")
+        println("   Máximo de clientes: $maxClients")
+        println("   Fichas iniciales: ${gameSettings.initialChips}")
+        println("   Apuesta mínima: ${gameSettings.minBet}")
+        println("   Apuesta máxima: ${gameSettings.maxBet}")
+        println("   Número de mazos: ${gameSettings.numberOfDecks}")
+        println("   Pago por Blackjack: ${gameSettings.blackjackPayout}x")
     }
 
     /**
      * Carga la configuración desde el archivo properties
      */
     private fun loadConfiguration(): Map<String, String> {
-        val config = mutableMapOf<String, String>()
+        val configMap = mutableMapOf<String, String>()
 
         try {
             val configFile = File("server/src/main/resources/server-config.properties")
@@ -41,7 +76,7 @@ class GameServer(private val port: Int = GameConfig.DEFAULT_SERVER_PORT) {
                 val properties = Properties()
                 configFile.inputStream().use { properties.load(it) }
                 properties.forEach { key, value ->
-                    config[key.toString()] = value.toString()
+                    configMap[key.toString()] = value.toString()
                 }
                 println("✅ Configuración cargada desde: ${configFile.absolutePath}")
             } else {
@@ -52,7 +87,7 @@ class GameServer(private val port: Int = GameConfig.DEFAULT_SERVER_PORT) {
             println("   Usando valores por defecto")
         }
 
-        return config
+        return configMap
     }
 
     /**
@@ -60,14 +95,17 @@ class GameServer(private val port: Int = GameConfig.DEFAULT_SERVER_PORT) {
      */
     fun start() {
         try {
-            serverSocket = ServerSocket(port)
+            val bindAddress = InetAddress.getByName(host)
+            serverSocket = ServerSocket(port, 50, bindAddress)
             isRunning = true
 
             println()
             println("=" .repeat(60))
             println("🎰 SERVIDOR DE BLACKJACK INICIADO")
             println("=" .repeat(60))
+            println("📡 Host: $host")
             println("📡 Puerto: $port")
+            println("👥 Máximo de clientes: $maxClients")
             println("🎮 Esperando conexiones de clientes...")
             println("🛑 Presiona Ctrl+C para detener el servidor")
             println("=" .repeat(60))
@@ -78,15 +116,27 @@ class GameServer(private val port: Int = GameConfig.DEFAULT_SERVER_PORT) {
                 try {
                     val clientSocket = serverSocket?.accept() ?: break
 
+                    // Verificar límite de clientes
+                    if (currentClients.get() >= maxClients) {
+                        println("⚠️ Límite de clientes alcanzado ($maxClients). Rechazando conexión.")
+                        clientSocket.close()
+                        continue
+                    }
+
+                    currentClients.incrementAndGet()
                     println("🔔 Nueva conexión desde: ${clientSocket.inetAddress.hostAddress}:${clientSocket.port}")
+                    println("   Clientes conectados: ${currentClients.get()}/$maxClients")
 
                     // Lanzar una corrutina para manejar este cliente
                     scope.launch {
-                        val handler = ClientHandler(clientSocket, recordsManager)
+                        val handler = ClientHandler(clientSocket, recordsManager, gameSettings)
                         try {
                             handler.handle()
                         } catch (e: Exception) {
                             println("❌ Error manejando cliente: ${e.message}")
+                        } finally {
+                            currentClients.decrementAndGet()
+                            println("👋 Cliente desconectado. Clientes restantes: ${currentClients.get()}/$maxClients")
                         }
                     }
                 } catch (e: SocketException) {
@@ -125,8 +175,7 @@ class GameServer(private val port: Int = GameConfig.DEFAULT_SERVER_PORT) {
  * Punto de entrada del servidor
  */
 fun main() {
-    val port = System.getenv("SERVER_PORT")?.toIntOrNull() ?: GameConfig.DEFAULT_SERVER_PORT
-    val server = GameServer(port)
+    val server = GameServer()
 
     // Manejar cierre graceful
     Runtime.getRuntime().addShutdownHook(Thread {

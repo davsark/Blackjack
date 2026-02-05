@@ -12,7 +12,7 @@ import kotlin.concurrent.write
 
 /**
  * Gestor de records del juego
- * Guarda y lee records en formato JSON
+ * Guarda y lee records en formato JSON con estadísticas extendidas
  */
 class RecordsManager(private val recordsFilePath: String = "records.json") {
     private val recordsFile = File(recordsFilePath)
@@ -25,6 +25,14 @@ class RecordsManager(private val recordsFilePath: String = "records.json") {
         var wins: Int = 0,
         var losses: Int = 0,
         var blackjacks: Int = 0,
+        var surrenders: Int = 0,
+        var pushes: Int = 0,
+        var gamesPlayed: Int = 0,
+        var maxChips: Int = GameConfig.INITIAL_CHIPS,
+        var currentStreak: Int = 0,
+        var bestStreak: Int = 0,
+        var totalGain: Int = 0,
+        var bestHand: String = "",
         var lastPlayed: Long = System.currentTimeMillis()
     )
 
@@ -46,6 +54,12 @@ class RecordsManager(private val recordsFilePath: String = "records.json") {
                         wins = record.wins,
                         losses = record.losses,
                         blackjacks = record.blackjacks,
+                        maxChips = record.maxChips,
+                        currentStreak = record.currentStreak,
+                        bestStreak = record.bestStreak,
+                        totalGain = record.totalGain,
+                        bestHand = record.bestHand,
+                        gamesPlayed = record.gamesPlayed,
                         lastPlayed = record.timestamp
                     )
                 }
@@ -70,7 +84,13 @@ class RecordsManager(private val recordsFilePath: String = "records.json") {
                     wins = stats.wins,
                     losses = stats.losses,
                     blackjacks = stats.blackjacks,
-                    timestamp = stats.lastPlayed
+                    timestamp = stats.lastPlayed,
+                    maxChips = stats.maxChips,
+                    currentStreak = stats.currentStreak,
+                    bestStreak = stats.bestStreak,
+                    totalGain = stats.totalGain,
+                    bestHand = stats.bestHand,
+                    gamesPlayed = stats.gamesPlayed
                 )
             }.sortedByDescending { it.wins }
                 .take(GameConfig.MAX_RECORDS)
@@ -84,27 +104,60 @@ class RecordsManager(private val recordsFilePath: String = "records.json") {
     }
 
     /**
-     * Registra el resultado de una partida
+     * Registra el resultado de una partida con información de apuestas
      */
-    fun recordGameResult(playerName: String, result: GameResultType) = lock.write {
+    fun recordGameResult(
+        playerName: String,
+        result: GameResultType,
+        bet: Int,
+        payout: Int,
+        finalChips: Int
+    ) = lock.write {
         val stats = records.getOrPut(playerName) {
             PlayerStats(playerName = playerName)
         }
 
+        stats.gamesPlayed++
+        stats.totalGain += payout
+        
         when (result) {
-            GameResultType.WIN -> stats.wins++
-            GameResultType.LOSE -> stats.losses++
-            GameResultType.PUSH -> { /* Empate, no cuenta */ }
+            GameResultType.WIN -> {
+                stats.wins++
+                stats.currentStreak = if (stats.currentStreak >= 0) stats.currentStreak + 1 else 1
+            }
+            GameResultType.LOSE -> {
+                stats.losses++
+                stats.currentStreak = if (stats.currentStreak <= 0) stats.currentStreak - 1 else -1
+            }
+            GameResultType.PUSH -> {
+                stats.pushes++
+                // Empate no afecta la racha
+            }
             GameResultType.BLACKJACK -> {
                 stats.wins++
                 stats.blackjacks++
+                stats.currentStreak = if (stats.currentStreak >= 0) stats.currentStreak + 1 else 1
             }
+            GameResultType.SURRENDER -> {
+                stats.surrenders++
+                stats.currentStreak = if (stats.currentStreak <= 0) stats.currentStreak - 1 else -1
+            }
+        }
+
+        // Actualizar mejor racha
+        if (stats.currentStreak > stats.bestStreak) {
+            stats.bestStreak = stats.currentStreak
+        }
+
+        // Actualizar fichas máximas
+        if (finalChips > stats.maxChips) {
+            stats.maxChips = finalChips
         }
 
         stats.lastPlayed = System.currentTimeMillis()
         saveRecords()
 
-        println("📊 Record actualizado: $playerName (${stats.wins}W-${stats.losses}L, ${stats.blackjacks} BJ)")
+        println("📊 Record actualizado: $playerName (${stats.wins}W-${stats.losses}L, Racha: ${stats.currentStreak}, Mejor: ${stats.bestStreak}, Max fichas: ${stats.maxChips})")
     }
 
     /**
@@ -118,7 +171,13 @@ class RecordsManager(private val recordsFilePath: String = "records.json") {
                     wins = stats.wins,
                     losses = stats.losses,
                     blackjacks = stats.blackjacks,
-                    timestamp = stats.lastPlayed
+                    timestamp = stats.lastPlayed,
+                    maxChips = stats.maxChips,
+                    currentStreak = stats.currentStreak,
+                    bestStreak = stats.bestStreak,
+                    totalGain = stats.totalGain,
+                    bestHand = stats.bestHand,
+                    gamesPlayed = stats.gamesPlayed
                 )
             }
             .sortedWith(compareByDescending<Record> { it.wins }.thenBy { it.losses })
@@ -135,7 +194,13 @@ class RecordsManager(private val recordsFilePath: String = "records.json") {
                 wins = stats.wins,
                 losses = stats.losses,
                 blackjacks = stats.blackjacks,
-                timestamp = stats.lastPlayed
+                timestamp = stats.lastPlayed,
+                maxChips = stats.maxChips,
+                currentStreak = stats.currentStreak,
+                bestStreak = stats.bestStreak,
+                totalGain = stats.totalGain,
+                bestHand = stats.bestHand,
+                gamesPlayed = stats.gamesPlayed
             )
         }
     }
