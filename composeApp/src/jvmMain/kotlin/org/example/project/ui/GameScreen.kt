@@ -27,6 +27,7 @@ fun GameScreen(
     onSurrender: () -> Unit,
     onNewGame: () -> Unit,
     onShowRecords: () -> Unit,
+    onShowHistory: () -> Unit,
     onDisconnect: () -> Unit
 ) {
     Box(
@@ -51,7 +52,10 @@ fun GameScreen(
             TopGameBar(
                 chips = gameState.playerChips,
                 currentBet = gameState.currentBet,
+                totalBet = gameState.totalBet,
+                numberOfHands = gameState.numberOfHands,
                 onShowRecords = onShowRecords,
+                onShowHistory = onShowHistory,
                 onDisconnect = onDisconnect
             )
 
@@ -107,7 +111,10 @@ fun GameScreen(
 private fun TopGameBar(
     chips: Int,
     currentBet: Int,
+    totalBet: Int,
+    numberOfHands: Int,
     onShowRecords: () -> Unit,
+    onShowHistory: () -> Unit,
     onDisconnect: () -> Unit
 ) {
     Row(
@@ -116,12 +123,21 @@ private fun TopGameBar(
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Título
-        Text(
-            text = "🎰 BLACKJACK",
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFFFFD700)
-        )
+        Column {
+            Text(
+                text = "🎰 BLACKJACK",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFFFFD700)
+            )
+            if (numberOfHands > 1) {
+                Text(
+                    text = "$numberOfHands manos",
+                    fontSize = 12.sp,
+                    color = Color.White.copy(alpha = 0.7f)
+                )
+            }
+        }
 
         // Fichas y apuesta
         Row(
@@ -132,11 +148,18 @@ private fun TopGameBar(
             ChipDisplay(label = "Fichas", value = chips, color = Color(0xFF2ECC71))
             
             // Apuesta actual
-            ChipDisplay(label = "Apuesta", value = currentBet, color = Color(0xFFE74C3C))
+            ChipDisplay(
+                label = if (numberOfHands > 1) "Total" else "Apuesta", 
+                value = if (numberOfHands > 1) totalBet else currentBet, 
+                color = Color(0xFFE74C3C)
+            )
         }
 
         // Botones de acción
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            TextButton(onClick = onShowHistory) {
+                Text("📜", fontSize = 20.sp)
+            }
             TextButton(onClick = onShowRecords) {
                 Text("🏆", fontSize = 20.sp)
             }

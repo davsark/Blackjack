@@ -8,7 +8,7 @@ import org.example.project.protocol.*
 
 /**
  * Inteligencia Artificial del Dealer para modo PVE y PVP
- * Implementa las reglas estándar del Blackjack con soporte para apuestas y múltiples manos
+ * Implementa las reglas estándar del Blackjack con soporte para apuestas
  */
 class DealerAI(
     private val deck: Deck,
@@ -21,19 +21,11 @@ class DealerAI(
     private val hasDoubled = mutableMapOf<String, Boolean>()
     private val hasSplit = mutableMapOf<String, Boolean>()
     private val activeSplitHand = mutableMapOf<String, Int>() // 0 = main, 1 = split
-    
-    // Soporte para múltiples manos
-    private val multipleHands = mutableMapOf<String, MutableList<Hand>>()
-    private val multipleHandsBets = mutableMapOf<String, MutableList<Int>>()
-    private val multipleHandsStatus = mutableMapOf<String, MutableList<HandStatus>>()
-    private val activeHandIndex = mutableMapOf<String, Int>()
-    private val numberOfHandsPerPlayer = mutableMapOf<String, Int>()
 
     /**
-     * Inicia una nueva partida (soporta múltiples manos)
-     * @param numberOfHands Número de manos a jugar (1-3)
+     * Inicia una nueva partida
      */
-    fun startNewGame(playerId: String, bet: Int, playerChips: Int, numberOfHands: Int = 1): ServerMessage.GameState {
+    fun startNewGame(playerId: String, bet: Int, playerChips: Int): ServerMessage.GameState {
         // Limpiar manos anteriores
         dealerHand.clear()
         playerHands.remove(playerId)
@@ -42,65 +34,22 @@ class DealerAI(
         hasDoubled[playerId] = false
         hasSplit[playerId] = false
         activeSplitHand[playerId] = 0
-        
-        // Configurar múltiples manos
-        numberOfHandsPerPlayer[playerId] = numberOfHands
-        activeHandIndex[playerId] = 0
-        
-        if (numberOfHands > 1) {
-            // Modo múltiples manos
-            val hands = mutableListOf<Hand>()
-            val bets = mutableListOf<Int>()
-            val statuses = mutableListOf<HandStatus>()
-            
-            for (i in 0 until numberOfHands) {
-                hands.add(Hand())
-                bets.add(bet)
-                statuses.add(if (i == 0) HandStatus.PLAYING else HandStatus.WAITING)
-            }
-            
-            multipleHands[playerId] = hands
-            multipleHandsBets[playerId] = bets
-            multipleHandsStatus[playerId] = statuses
-            
-            // Repartir cartas
-            for (hand in hands) {
-                hand.addCard(deck.dealCard(hidden = false))
-            }
-            dealerHand.addCard(deck.dealCard(hidden = false))
-            for (hand in hands) {
-                hand.addCard(deck.dealCard(hidden = false))
-            }
-            dealerHand.addCard(deck.dealCard(hidden = true))
-            
-            playerHands[playerId] = hands[0]
-            
-            println("🎴 Nueva partida multi-mano iniciada ($numberOfHands manos, Apuesta: $bet cada una)")
-            for ((index, hand) in hands.withIndex()) {
-                println("   Mano ${index + 1}: ${hand.getCards()} = ${hand.calculateValue()}")
-            }
-            println("   Dealer: ${dealerHand.getCards()}")
-            
-        } else {
-            // Modo mano única
-            multipleHands.remove(playerId)
-            multipleHandsBets.remove(playerId)
-            multipleHandsStatus.remove(playerId)
-            
-            val playerHand = Hand()
-            playerHands[playerId] = playerHand
 
-            playerHand.addCard(deck.dealCard(hidden = false))
-            dealerHand.addCard(deck.dealCard(hidden = false))
-            playerHand.addCard(deck.dealCard(hidden = false))
-            dealerHand.addCard(deck.dealCard(hidden = true))
+        // Crear mano para el jugador
+        val playerHand = Hand()
+        playerHands[playerId] = playerHand
 
-            println("🎴 Nueva partida iniciada (Apuesta: $bet)")
-            println("   Jugador: ${playerHand.getCards()} = ${playerHand.calculateValue()}")
-            println("   Dealer: ${dealerHand.getCards()}")
-        }
+        // Repartir cartas iniciales (2 para jugador, 2 para dealer)
+        playerHand.addCard(deck.dealCard(hidden = false))
+        dealerHand.addCard(deck.dealCard(hidden = false))
+        playerHand.addCard(deck.dealCard(hidden = false))
+        dealerHand.addCard(deck.dealCard(hidden = true)) // Segunda carta del dealer oculta
 
-        return buildGameState(playerId, GamePhase.PLAYER_TURN, playerChips)
+        println("🎴 Nueva partida iniciada (Apuesta: $bet)")
+        println("   Jugador: ${playerHand.getCards()} = ${playerHand.calculateValue()}")
+        println("   Dealer: ${dealerHand.getCards()}")
+
+        return buildGameState(playerId, GamePhase.PLAYER_TURN, playerChips - bet)
     }
 
     /**
@@ -338,14 +287,13 @@ class DealerAI(
     }
 
     /**
-     * Construye el estado actual del juego (con soporte para múltiples manos)
+     * Construye el estado actual del juego
      */
     private fun buildGameState(playerId: String, phase: GamePhase, playerChips: Int): ServerMessage.GameState {
         val playerHand = playerHands[playerId] ?: throw IllegalStateException("Jugador no encontrado")
         val splitHand = splitHands[playerId]
         val currentBet = playerBets[playerId] ?: 0
         val activeHand = getActiveHand(playerId) ?: playerHand
-        val numHands = numberOfHandsPerPlayer[playerId] ?: 1
 
         val playerScore = activeHand.calculateValue()
         val dealerScore = if (phase == GamePhase.GAME_OVER) {
@@ -364,6 +312,7 @@ class DealerAI(
         val canDouble = phase == GamePhase.PLAYER_TURN && 
                        activeHand.getCards().size == 2 && 
                        !activeHand.isBusted() &&
+                       playerChips >= currentBet && // Verificar que tiene fichas suficientes
                        (gameSettings.allowDoubleAfterSplit || hasSplit[playerId] != true)
         
         val canSplit = phase == GamePhase.PLAYER_TURN &&
@@ -375,10 +324,6 @@ class DealerAI(
                           playerHand.getCards().size == 2 &&
                           hasSplit[playerId] != true &&
                           gameSettings.allowSurrender
-        
-        // Construir estados de múltiples manos
-        val multiHandStates = if (numHands > 1) buildMultiHandStates(playerId) else emptyList()
-        val totalBetAmount = if (numHands > 1) currentBet * numHands else currentBet
 
         return ServerMessage.GameState(
             playerHand = playerHand.getCards(),
@@ -396,11 +341,7 @@ class DealerAI(
             splitHand = splitHand?.getCards(),
             splitScore = splitHand?.calculateValue(),
             activeSplitHand = activeSplitHand[playerId] ?: 0,
-            bustProbability = bustProbability,
-            multipleHands = multiHandStates,
-            activeHandIndex = activeHandIndex[playerId] ?: 0,
-            numberOfHands = numHands,
-            totalBet = totalBetAmount
+            bustProbability = bustProbability
         )
     }
 
@@ -453,105 +394,6 @@ class DealerAI(
             println("🔄 Baraja baja en cartas, reiniciando...")
             deck.reset()
             deck.shuffle()
-        }
-    }
-    
-    /**
-     * Selecciona una mano específica para jugar (modo multi-mano)
-     */
-    fun selectHand(playerId: String, handIndex: Int): Boolean {
-        val hands = multipleHands[playerId] ?: return false
-        val statuses = multipleHandsStatus[playerId] ?: return false
-        
-        if (handIndex < 0 || handIndex >= hands.size) return false
-        if (statuses[handIndex] != HandStatus.WAITING) return false
-        
-        // Marcar la mano actual como completada si estaba jugando
-        val currentIndex = activeHandIndex[playerId] ?: 0
-        if (statuses[currentIndex] == HandStatus.PLAYING) {
-            statuses[currentIndex] = HandStatus.STANDING
-        }
-        
-        // Activar la nueva mano
-        activeHandIndex[playerId] = handIndex
-        statuses[handIndex] = HandStatus.PLAYING
-        playerHands[playerId] = hands[handIndex]
-        
-        return true
-    }
-    
-    /**
-     * Obtiene el estado actual del juego
-     */
-    fun getCurrentState(playerId: String, playerChips: Int): ServerMessage.GameState {
-        return buildGameState(playerId, GamePhase.PLAYER_TURN, playerChips)
-    }
-    
-    /**
-     * Obtiene la mano del jugador (para historial)
-     */
-    fun getPlayerHand(playerId: String): List<Card> {
-        return playerHands[playerId]?.getCards() ?: emptyList()
-    }
-    
-    /**
-     * Avanza a la siguiente mano en modo multi-mano
-     * @return true si hay más manos por jugar, false si se completaron todas
-     */
-    private fun advanceToNextHand(playerId: String): Boolean {
-        val hands = multipleHands[playerId] ?: return false
-        val statuses = multipleHandsStatus[playerId] ?: return false
-        val currentIndex = activeHandIndex[playerId] ?: 0
-        
-        // Marcar la mano actual como completada
-        if (statuses[currentIndex] == HandStatus.PLAYING) {
-            statuses[currentIndex] = HandStatus.STANDING
-        }
-        
-        // Buscar la siguiente mano pendiente
-        for (i in (currentIndex + 1) until hands.size) {
-            if (statuses[i] == HandStatus.WAITING) {
-                activeHandIndex[playerId] = i
-                statuses[i] = HandStatus.PLAYING
-                playerHands[playerId] = hands[i]
-                return true
-            }
-        }
-        
-        return false
-    }
-    
-    /**
-     * Verifica si todas las manos están completadas
-     */
-    private fun allHandsCompleted(playerId: String): Boolean {
-        val statuses = multipleHandsStatus[playerId] ?: return true
-        return statuses.all { it != HandStatus.WAITING && it != HandStatus.PLAYING }
-    }
-    
-    /**
-     * Construye los estados de múltiples manos para el mensaje
-     */
-    private fun buildMultiHandStates(playerId: String): List<MultiHandState> {
-        val hands = multipleHands[playerId] ?: return emptyList()
-        val bets = multipleHandsBets[playerId] ?: return emptyList()
-        val statuses = multipleHandsStatus[playerId] ?: return emptyList()
-        val currentActive = activeHandIndex[playerId] ?: 0
-        
-        return hands.mapIndexed { index, hand ->
-            val isActive = index == currentActive && statuses[index] == HandStatus.PLAYING
-            MultiHandState(
-                handIndex = index,
-                cards = hand.getCards(),
-                score = hand.calculateValue(),
-                bet = bets[index],
-                status = statuses[index],
-                canHit = isActive && !hand.isBusted() && hand.calculateValue() < 21,
-                canStand = isActive && !hand.isBusted(),
-                canDouble = isActive && hand.getCards().size == 2 && !hand.isBusted(),
-                canSplit = isActive && hand.getCards().size == 2 && 
-                          hand.getCards()[0].rank.value == hand.getCards()[1].rank.value
-            )
         }
     }
 }

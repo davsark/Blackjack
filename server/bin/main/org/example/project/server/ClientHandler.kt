@@ -38,13 +38,6 @@ class ClientHandler(
     private var playerChips: Int = gameSettings.initialChips
     private var currentBet: Int = 0
     private var isInGame: Boolean = false
-    
-    // Soporte para múltiples manos
-    private var numberOfHands: Int = 1
-    private var totalBet: Int = 0
-    
-    // Historial de manos (últimas 10)
-    private val handHistory = mutableListOf<HandHistory>()
 
     init {
         deck.shuffle()
@@ -110,8 +103,6 @@ class ClientHandler(
             is ClientMessage.Surrender -> handleSurrender()
             is ClientMessage.NewGame -> handleNewGame()
             is ClientMessage.RequestRecords -> handleRequestRecords()
-            is ClientMessage.RequestHistory -> handleRequestHistory()
-            is ClientMessage.SelectHand -> handleSelectHand(message)
             is ClientMessage.Ping -> handlePing()
         }
     }
@@ -174,20 +165,18 @@ class ClientHandler(
     }
 
     /**
-     * Maneja la apuesta del jugador (soporta múltiples manos)
+     * Maneja la apuesta del jugador
      */
     private suspend fun handlePlaceBet(message: ClientMessage.PlaceBet) {
         val betAmount = message.amount
-        val numHands = message.numberOfHands.coerceIn(1, 3)
-        val totalBetRequired = betAmount * numHands
         
         // Validar apuesta
         if (betAmount < gameSettings.minBet) {
             sendError("La apuesta mínima es ${gameSettings.minBet}")
             return
         }
-        if (totalBetRequired > playerChips) {
-            sendError("No tienes suficientes fichas. Necesitas: $totalBetRequired, Tienes: $playerChips")
+        if (betAmount > playerChips) {
+            sendError("No tienes suficientes fichas. Tienes: $playerChips")
             return
         }
         if (betAmount > gameSettings.maxBet) {
@@ -196,26 +185,23 @@ class ClientHandler(
         }
         
         currentBet = betAmount
-        numberOfHands = numHands
-        totalBet = totalBetRequired
         isInGame = true
-        
-        println("💰 $playerName apuesta $currentBet fichas x $numberOfHands manos = $totalBet total")
+        println("💰 $playerName apuesta $currentBet fichas")
         
         // Iniciar la partida
         startGame()
     }
 
     /**
-     * Inicia una nueva partida después de la apuesta (soporta múltiples manos)
+     * Inicia una nueva partida después de la apuesta
      */
     private suspend fun startGame() {
         dealerAI.checkAndResetDeck()
-        val gameState = dealerAI.startNewGame(playerId, currentBet, playerChips - totalBet, numberOfHands)
+        val gameState = dealerAI.startNewGame(playerId, currentBet, playerChips)
         sendMessage(gameState)
 
-        // Verificar si hay Blackjack natural (solo en modo de una mano)
-        if (numberOfHands == 1 && gameState.playerScore == 21 && gameState.playerHand.size == 2) {
+        // Verificar si hay Blackjack natural
+        if (gameState.playerScore == 21 && gameState.playerHand.size == 2) {
             delay(500)
             finishGame()
         }
@@ -360,22 +346,6 @@ class ClientHandler(
         println("🏆 Resultado para $playerName: ${result.result} | Pago: ${result.payout} | Fichas: $playerChips")
         
         sendMessage(result)
-        
-        // Guardar en historial (últimas 10 manos)
-        val historyEntry = HandHistory(
-            playerHand = dealerAI.getPlayerHand(playerId),
-            dealerHand = result.dealerFinalHand,
-            result = result.result,
-            bet = currentBet,
-            payout = result.payout,
-            timestamp = System.currentTimeMillis(),
-            playerScore = result.playerFinalScore,
-            dealerScore = result.dealerFinalScore
-        )
-        handHistory.add(0, historyEntry)
-        if (handHistory.size > 10) {
-            handHistory.removeAt(handHistory.size - 1)
-        }
 
         // Guardar en records
         recordsManager.recordGameResult(
@@ -387,8 +357,6 @@ class ClientHandler(
         )
         
         currentBet = 0
-        numberOfHands = 1
-        totalBet = 0
         
         // Solicitar nueva apuesta si tiene fichas
         if (playerChips >= gameSettings.minBet) {
@@ -431,31 +399,6 @@ class ClientHandler(
     private suspend fun handleRequestRecords() {
         val records = recordsManager.getTopRecords()
         sendMessage(ServerMessage.RecordsList(records))
-    }
-
-    /**
-     * Maneja la solicitud de historial de manos
-     */
-    private suspend fun handleRequestHistory() {
-        sendMessage(ServerMessage.HandHistoryList(handHistory.toList()))
-    }
-
-    /**
-     * Maneja la selección de mano activa (para múltiples manos)
-     */
-    private suspend fun handleSelectHand(message: ClientMessage.SelectHand) {
-        if (!isInGame || !::dealerAI.isInitialized) {
-            sendError("No hay juego activo")
-            return
-        }
-        
-        val success = dealerAI.selectHand(playerId, message.handIndex)
-        if (success) {
-            val gameState = dealerAI.getCurrentState(playerId, playerChips - totalBet)
-            sendMessage(gameState)
-        } else {
-            sendError("No se puede seleccionar esa mano")
-        }
     }
 
     /**

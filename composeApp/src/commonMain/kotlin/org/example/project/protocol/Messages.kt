@@ -18,10 +18,15 @@ sealed class ClientMessage {
     ) : ClientMessage()
 
     /**
-     * El jugador realiza una apuesta
+     * El jugador realiza una apuesta (soporta múltiples manos)
+     * @param amount Apuesta por mano
+     * @param numberOfHands Número de manos a jugar (1-3)
      */
     @Serializable
-    data class PlaceBet(val amount: Int) : ClientMessage()
+    data class PlaceBet(
+        val amount: Int,
+        val numberOfHands: Int = 1
+    ) : ClientMessage()
 
     /**
      * El jugador pide una carta (HIT)
@@ -64,6 +69,19 @@ sealed class ClientMessage {
      */
     @Serializable
     data object RequestRecords : ClientMessage()
+
+    /**
+     * El jugador solicita el historial de manos
+     */
+    @Serializable
+    data object RequestHistory : ClientMessage()
+
+    /**
+     * El jugador selecciona una mano específica para jugar (multi-mano)
+     * @param handIndex Índice de la mano (0, 1, 2)
+     */
+    @Serializable
+    data class SelectHand(val handIndex: Int) : ClientMessage()
 
     /**
      * Ping para mantener la conexión viva
@@ -109,7 +127,7 @@ sealed class ServerMessage {
     ) : ServerMessage()
 
     /**
-     * Estado completo del juego
+     * Estado completo del juego (soporta múltiples manos)
      */
     @Serializable
     data class GameState(
@@ -129,7 +147,12 @@ sealed class ServerMessage {
         val splitScore: Int? = null,
         val activeSplitHand: Int = 0,
         val bustProbability: Double = 0.0,
-        val otherPlayers: List<PlayerInfo> = emptyList()
+        val otherPlayers: List<PlayerInfo> = emptyList(),
+        // Soporte para múltiples manos
+        val multipleHands: List<MultiHandState> = emptyList(),
+        val activeHandIndex: Int = 0,
+        val numberOfHands: Int = 1,
+        val totalBet: Int = 0
     ) : ServerMessage()
 
     /**
@@ -154,6 +177,14 @@ sealed class ServerMessage {
     @Serializable
     data class RecordsList(
         val records: List<Record>
+    ) : ServerMessage()
+
+    /**
+     * Historial de manos jugadas
+     */
+    @Serializable
+    data class HandHistoryList(
+        val history: List<HandHistory>
     ) : ServerMessage()
 
     /**
@@ -341,5 +372,38 @@ data class HandHistory(
     val result: GameResultType,
     val bet: Int,
     val payout: Int,
-    val timestamp: Long
+    val timestamp: Long,
+    val playerScore: Int = 0,
+    val dealerScore: Int = 0
 )
+
+/**
+ * Estado de una mano individual en modo multi-mano
+ */
+@Serializable
+data class MultiHandState(
+    val handIndex: Int,
+    val cards: List<Card>,
+    val score: Int,
+    val bet: Int,
+    val status: HandStatus,
+    val canHit: Boolean,
+    val canStand: Boolean,
+    val canDouble: Boolean,
+    val canSplit: Boolean,
+    val result: GameResultType? = null,
+    val payout: Int = 0
+)
+
+/**
+ * Estado de una mano en modo multi-mano
+ */
+@Serializable
+enum class HandStatus {
+    WAITING,      // Esperando turno
+    PLAYING,      // Turno activo
+    STANDING,     // Se plantó
+    BUSTED,       // Se pasó
+    BLACKJACK,    // Blackjack natural
+    COMPLETED     // Finalizada
+}

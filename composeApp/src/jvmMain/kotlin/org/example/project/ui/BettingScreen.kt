@@ -16,17 +16,21 @@ import androidx.compose.ui.unit.sp
 
 /**
  * Pantalla para realizar apuestas antes de empezar la partida
+ * Soporta selección de múltiples manos (1-3)
  */
 @Composable
 fun BettingScreen(
     playerChips: Int,
     minBet: Int,
     maxBet: Int,
-    onPlaceBet: (Int) -> Unit,
+    onPlaceBet: (Int, Int) -> Unit, // (amount, numberOfHands)
     onBack: () -> Unit
 ) {
     var betAmount by remember { mutableStateOf(minBet) }
-    val actualMaxBet = minOf(maxBet, playerChips)
+    var numberOfHands by remember { mutableStateOf(1) }
+    
+    val actualMaxBet = minOf(maxBet, playerChips / numberOfHands)
+    val totalBet = betAmount * numberOfHands
     
     // Opciones rápidas de apuesta
     val quickBets = listOf(
@@ -90,9 +94,70 @@ fun BettingScreen(
                 modifier = Modifier.padding(bottom = 24.dp)
             )
 
+            // Selector de número de manos
+            Card(
+                modifier = Modifier
+                    .width(300.dp)
+                    .padding(bottom = 16.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF2C3E50))
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "🃏 Número de Manos",
+                        fontSize = 16.sp,
+                        color = Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        listOf(1, 2, 3).forEach { hands ->
+                            val canAfford = minBet * hands <= playerChips
+                            Button(
+                                onClick = { 
+                                    numberOfHands = hands
+                                    // Ajustar apuesta si es necesario
+                                    val newMaxBet = minOf(maxBet, playerChips / hands)
+                                    if (betAmount > newMaxBet) {
+                                        betAmount = newMaxBet
+                                    }
+                                },
+                                enabled = canAfford,
+                                modifier = Modifier.size(70.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (numberOfHands == hands) Color(0xFF9B59B6) else Color(0xFF34495E),
+                                    disabledContainerColor = Color.Gray.copy(alpha = 0.3f)
+                                )
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = "$hands",
+                                        fontSize = 24.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        text = if (hands == 1) "mano" else "manos",
+                                        fontSize = 9.sp,
+                                        color = Color.White.copy(alpha = 0.7f)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // Límites de apuesta
             Text(
-                text = "Mínimo: $minBet | Máximo: $actualMaxBet",
+                text = "Mínimo: $minBet | Máximo: $actualMaxBet por mano",
                 fontSize = 14.sp,
                 color = Color.White.copy(alpha = 0.6f),
                 modifier = Modifier.padding(bottom = 16.dp)
@@ -109,7 +174,7 @@ fun BettingScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "Apuesta",
+                        text = "Apuesta por mano",
                         fontSize = 16.sp,
                         color = Color.White.copy(alpha = 0.7f)
                     )
@@ -184,6 +249,17 @@ fun BettingScreen(
                             }
                         }
                     }
+                    
+                    // Total de apuesta
+                    if (numberOfHands > 1) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "Total: $totalBet fichas ($betAmount × $numberOfHands)",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFFFD700)
+                        )
+                    }
                 }
             }
 
@@ -191,7 +267,8 @@ fun BettingScreen(
 
             // Botón de apostar
             Button(
-                onClick = { onPlaceBet(betAmount) },
+                onClick = { onPlaceBet(betAmount, numberOfHands) },
+                enabled = totalBet <= playerChips,
                 modifier = Modifier
                     .width(280.dp)
                     .height(56.dp),
@@ -199,8 +276,8 @@ fun BettingScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2ECC71))
             ) {
                 Text(
-                    text = "🎲 APOSTAR $betAmount",
-                    fontSize = 20.sp,
+                    text = if (numberOfHands > 1) "🎲 APOSTAR $totalBet ($numberOfHands manos)" else "🎲 APOSTAR $betAmount",
+                    fontSize = if (numberOfHands > 1) 16.sp else 20.sp,
                     fontWeight = FontWeight.Bold
                 )
             }

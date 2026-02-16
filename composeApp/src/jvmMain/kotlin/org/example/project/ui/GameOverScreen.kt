@@ -22,6 +22,7 @@ fun GameOverScreen(
     gameResult: ServerMessage.GameResult,
     onNewGame: () -> Unit,
     onShowRecords: () -> Unit,
+    onShowHistory: () -> Unit,
     onDisconnect: () -> Unit
 ) {
     Box(
@@ -54,7 +55,10 @@ fun GameOverScreen(
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFFFFD700)
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = onShowHistory) {
+                        Text("📜", fontSize = 20.sp)
+                    }
                     TextButton(onClick = onShowRecords) {
                         Text("🏆", fontSize = 20.sp)
                     }
@@ -121,11 +125,22 @@ fun GameOverScreen(
                         )
                     }
 
-                    OutlinedButton(
-                        onClick = onShowRecords,
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("🏆 Ver Records", color = Color.White)
+                        OutlinedButton(
+                            onClick = onShowHistory,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("📜 Historial", color = Color.White)
+                        }
+                        OutlinedButton(
+                            onClick = onShowRecords,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("🏆 Records", color = Color.White)
+                        }
                     }
                 }
             }
