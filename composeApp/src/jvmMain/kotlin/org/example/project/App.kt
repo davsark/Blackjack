@@ -97,7 +97,7 @@ fun App() {
             }
 
             // ═══════════════════════════════════════════════════════════════
-            // MESA DE JUEGO - Pantalla principal unificada
+            // MESA DE JUEGO PVE - Pantalla principal unificada
             // ═══════════════════════════════════════════════════════════════
             is GameUiState.AtTable -> {
                 TableScreen(
@@ -128,6 +128,39 @@ fun App() {
                     onShowHistory = { viewModel.requestHistory() },
                     onLeaveTable = { viewModel.leaveTable() }
                 )
+            }
+
+            // ═══════════════════════════════════════════════════════════════
+            // MESA PVP - Múltiples jugadores en la misma mesa
+            // ═══════════════════════════════════════════════════════════════
+            is GameUiState.AtPvPTable -> {
+                val pvpTableState by viewModel.pvpTableState.collectAsState()
+                
+                pvpTableState?.let { tableState ->
+                    PvPTableScreen(
+                        tableState = tableState,
+                        playerChips = playerChips,
+                        currentBet = currentBet,
+                        minBet = minBet,
+                        maxBet = maxBet,
+                        gameResult = gameResult,
+                        
+                        // Acciones
+                        onPlaceBet = { amount -> viewModel.placeBet(amount, 1) },
+                        onHit = { viewModel.hit() },
+                        onStand = { viewModel.stand() },
+                        onDouble = { viewModel.double() },
+                        onSurrender = { viewModel.surrender() },
+                        onContinuePlaying = { viewModel.continuePlaying() },
+                        onShowRecords = { viewModel.requestRecords() },
+                        onLeaveTable = { viewModel.leaveTable() }
+                    )
+                } ?: run {
+                    // Esperando estado de mesa
+                    ConnectionScreen(
+                        onConnect = { _, _ -> }
+                    )
+                }
             }
 
             // ═══════════════════════════════════════════════════════════════

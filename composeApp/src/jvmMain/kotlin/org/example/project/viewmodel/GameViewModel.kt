@@ -77,6 +77,16 @@ class GameViewModel : ViewModel() {
     private val _handHistory = MutableStateFlow<List<HandHistory>>(emptyList())
     val handHistory: StateFlow<List<HandHistory>> = _handHistory.asStateFlow()
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // ESTADO PVP (mesa compartida)
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    private val _pvpTableState = MutableStateFlow<ServerMessage.PvPTableState?>(null)
+    val pvpTableState: StateFlow<ServerMessage.PvPTableState?> = _pvpTableState.asStateFlow()
+    
+    private val _isPvPMode = MutableStateFlow(false)
+    val isPvPMode: StateFlow<Boolean> = _isPvPMode.asStateFlow()
+
     // ID del jugador
     private val _playerId = MutableStateFlow<String?>(null)
     
@@ -397,6 +407,36 @@ class GameViewModel : ViewModel() {
             is ServerMessage.Pong -> {
                 // Ignorar
             }
+            
+            is ServerMessage.PvPTableState -> {
+                // Estado de mesa PvP
+                _pvpTableState.value = message
+                _isPvPMode.value = true
+                
+                // Actualizar fichas del jugador actual
+                val myInfo = message.players.find { it.playerId == message.currentPlayerId }
+                if (myInfo != null) {
+                    _playerChips.value = myInfo.chips
+                    _currentBet.value = myInfo.currentBet
+                }
+                
+                // Determinar fase de la mesa
+                _tablePhase.value = when (message.phase) {
+                    "BETTING" -> TablePhase.BETTING
+                    "DEALING" -> TablePhase.PLAYING
+                    "PLAYER_TURNS" -> TablePhase.PLAYING
+                    "DEALER_TURN" -> TablePhase.DEALER_TURN
+                    "RESOLVING", "ROUND_END" -> TablePhase.RESULT
+                    else -> TablePhase.BETTING
+                }
+                
+                // Asegurar que estamos en la pantalla correcta
+                if (_uiState.value != GameUiState.AtPvPTable) {
+                    _uiState.value = GameUiState.AtPvPTable
+                }
+                
+                println("🎰 Mesa PvP actualizada: ${message.players.size} jugadores, fase: ${message.phase}")
+            }
         }
         gameClient.clearLastMessage()
     }
@@ -453,7 +493,8 @@ sealed class GameUiState {
     data object ShowingConfig : GameUiState()
     data object Connecting : GameUiState()
     data object Connected : GameUiState()
-    data object AtTable : GameUiState()  // Estado principal: en la mesa jugando
+    data object AtTable : GameUiState()       // Estado PVE: en la mesa jugando
+    data object AtPvPTable : GameUiState()    // Estado PVP: mesa compartida
     data object ShowingRecords : GameUiState()
     data object ShowingHistory : GameUiState()
     data class Error(val message: String) : GameUiState()
