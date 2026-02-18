@@ -395,13 +395,13 @@ private fun DealerZone(
         
         if (cards.isNotEmpty()) {
             Row(
-                horizontalArrangement = Arrangement.spacedBy((-25).dp)
+                horizontalArrangement = Arrangement.spacedBy((-45).dp)
             ) {
                 cards.forEachIndexed { index, card ->
                     CardImage(
                         card = card,
-                        cardWidth = 60.dp,
-                        cardHeight = 84.dp
+                        cardWidth = 110.dp,
+                        cardHeight = 154.dp
                     )
                 }
             }
@@ -409,8 +409,8 @@ private fun DealerZone(
             // Placeholder
             Box(
                 modifier = Modifier
-                    .width(60.dp)
-                    .height(84.dp)
+                    .width(110.dp)
+                    .height(154.dp)
                     .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
                     .border(2.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
             )
@@ -488,13 +488,13 @@ private fun PlayerZone(
                         // Cartas de esta mano
                         if (handState.cards.isNotEmpty()) {
                             Row(
-                                horizontalArrangement = Arrangement.spacedBy((-15).dp)
+                                horizontalArrangement = Arrangement.spacedBy((-27).dp)
                             ) {
                                 handState.cards.forEach { card ->
                                     CardImage(
                                         card = card,
-                                        cardWidth = 45.dp,
-                                        cardHeight = 63.dp
+                                        cardWidth = 80.dp,
+                                        cardHeight = 112.dp
                                     )
                                 }
                             }
@@ -556,13 +556,13 @@ private fun PlayerZone(
             // MODO MANO ÚNICA (comportamiento original)
             if (showCards && cards.isNotEmpty()) {
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy((-25).dp)
+                    horizontalArrangement = Arrangement.spacedBy((-45).dp)
                 ) {
                     cards.forEachIndexed { index, card ->
                         CardImage(
                             card = card,
-                            cardWidth = 65.dp,
-                            cardHeight = 91.dp
+                            cardWidth = 115.dp,
+                            cardHeight = 161.dp
                         )
                     }
                 }
@@ -601,8 +601,8 @@ private fun PlayerZone(
                 // Placeholder cuando no hay cartas
                 Box(
                     modifier = Modifier
-                        .width(65.dp)
-                        .height(91.dp)
+                        .width(115.dp)
+                        .height(161.dp)
                         .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
                         .border(2.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(8.dp)),
                     contentAlignment = Alignment.Center

@@ -315,9 +315,9 @@ private fun DealerZone(
         Spacer(modifier = Modifier.height(8.dp))
         
         if (cards.isNotEmpty()) {
-            Row(horizontalArrangement = Arrangement.spacedBy((-20).dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy((-36).dp)) {
                 cards.forEach { card ->
-                    CardImage(card = card, cardWidth = 55.dp, cardHeight = 77.dp)
+                    CardImage(card = card, cardWidth = 100.dp, cardHeight = 140.dp)
                 }
             }
             
@@ -441,9 +441,9 @@ private fun PlayerCard(
         
         // Cartas
         if (showCards && player.cards.isNotEmpty()) {
-            Row(horizontalArrangement = Arrangement.spacedBy((-12).dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy((-22).dp)) {
                 player.cards.forEach { card ->
-                    CardImage(card = card, cardWidth = 35.dp, cardHeight = 49.dp)
+                    CardImage(card = card, cardWidth = 65.dp, cardHeight = 91.dp)
                 }
             }
             
