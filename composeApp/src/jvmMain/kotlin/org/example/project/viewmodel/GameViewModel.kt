@@ -94,7 +94,7 @@ class GameViewModel : ViewModel() {
     private val _numberOfDecks = MutableStateFlow(1)
     val numberOfDecks: StateFlow<Int> = _numberOfDecks.asStateFlow()
 
-    private val _blackjackPayout = MutableStateFlow(1.5)   // 3:2
+    private val _blackjackPayout = MutableStateFlow(1.5)
     val blackjackPayout: StateFlow<Double> = _blackjackPayout.asStateFlow()
 
     private val _dealerHitsOnSoft17 = MutableStateFlow(false)

@@ -287,8 +287,14 @@ private fun DeckOption(decks: Int, isSelected: Boolean, onClick: () -> Unit) {
     }
 }
 
+// weight(1f) requiere RowScope — se declara como extensión de RowScope
 @Composable
-private fun PayoutOption(label: String, description: String, isSelected: Boolean, onClick: () -> Unit) {
+private fun RowScope.PayoutOption(
+    label: String,
+    description: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
     Button(
         onClick = onClick,
         modifier = Modifier.height(64.dp).weight(1f),

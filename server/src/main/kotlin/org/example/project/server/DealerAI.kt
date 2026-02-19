@@ -168,25 +168,24 @@ class DealerAI(
     }
 
     /**
-     * Jugador divide (SPLIT) - Solo disponible en mano única con par
+     * Jugador divide (SPLIT) - Permite re-splits hasta gameSettings.maxSplits
      */
     fun playerSplit(playerId: String): ServerMessage.GameState? {
         val state = playerStates[playerId] ?: return null
 
-        // Permitir splits hasta gameSettings.maxSplits veces (numberOfHands va de 1 a maxSplits+1)
+        // Permitir splits hasta gameSettings.maxSplits veces
         if (state.numberOfHands >= gameSettings.maxSplits + 1) return null
 
         val activeIdx = state.activeHandIndex
         val hand = state.hands[activeIdx]
         val cards = hand.getCards()
 
-        // Verificar que puede dividir
         if (cards.size != 2) return null
         if (cards[0].rank.value != cards[1].rank.value) return null
 
         val bet = state.bets[activeIdx]
 
-        // Crear mano extra con la segunda carta de la mano activa
+        // Crear nueva mano con la segunda carta de la mano activa
         val newHand = Hand()
         newHand.addCard(cards[1])
 
@@ -205,7 +204,6 @@ class DealerAI(
 
         println("✂️ Split mano ${activeIdx + 1}: ${hand.calculateValue()} / ${newHand.calculateValue()} (total ${state.numberOfHands} manos)")
 
-        // Si la mano activa quedó en 21 al recibir la carta, avanzar
         if (hand.calculateValue() == 21) {
             state.statuses[activeIdx] = HandStatus.STANDING
             return handleHandComplete(playerId, estimatePlayerChips(playerId))

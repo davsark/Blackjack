@@ -142,12 +142,12 @@ class ClientHandler(
                 // Modo solitario — usar settings del cliente si las envió
                 val effectiveSettings = message.settings?.let { s ->
                     gameSettings.copy(
-                        numberOfDecks     = s.numberOfDecks,
-                        blackjackPayout   = s.blackjackPayout,
+                        numberOfDecks      = s.numberOfDecks,
+                        blackjackPayout    = s.blackjackPayout,
                         dealerHitsOnSoft17 = s.dealerHitsOnSoft17,
                         allowDoubleAfterSplit = s.allowDoubleAfterSplit,
-                        allowSurrender    = s.allowSurrender,
-                        maxSplits         = s.maxSplits
+                        allowSurrender     = s.allowSurrender,
+                        maxSplits          = s.maxSplits
                     )
                 } ?: gameSettings
                 dealerAI = DealerAI(deck, effectiveSettings)
