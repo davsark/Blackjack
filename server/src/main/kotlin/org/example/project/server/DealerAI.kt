@@ -43,7 +43,7 @@ class DealerAI(
         
         // Crear nuevo estado del jugador
         val state = PlayerGameState(
-            numberOfHands = numberOfHands.coerceIn(1, 3)
+            numberOfHands = numberOfHands.coerceIn(1, 4)
         )
         
         // Inicializar cada mano
@@ -172,45 +172,45 @@ class DealerAI(
      */
     fun playerSplit(playerId: String): ServerMessage.GameState? {
         val state = playerStates[playerId] ?: return null
-        
-        // Solo se puede dividir si hay una sola mano actualmente
-        if (state.numberOfHands > 1) return null
-        
-        val hand = state.hands[0]
+
+        // Permitir splits hasta gameSettings.maxSplits veces (numberOfHands va de 1 a maxSplits+1)
+        if (state.numberOfHands >= gameSettings.maxSplits + 1) return null
+
+        val activeIdx = state.activeHandIndex
+        val hand = state.hands[activeIdx]
         val cards = hand.getCards()
-        
+
         // Verificar que puede dividir
         if (cards.size != 2) return null
         if (cards[0].rank.value != cards[1].rank.value) return null
-        
-        val bet = state.bets[0]
-        
-        // Crear segunda mano
-        val secondHand = Hand()
-        secondHand.addCard(cards[1])
-        
-        // Modificar primera mano
+
+        val bet = state.bets[activeIdx]
+
+        // Crear mano extra con la segunda carta de la mano activa
+        val newHand = Hand()
+        newHand.addCard(cards[1])
+
+        // Quitar segunda carta de la mano activa y dar una nueva
         hand.removeLastCard()
-        
-        // Dar nueva carta a cada mano
         hand.addCard(deck.dealCard(hidden = false))
-        secondHand.addCard(deck.dealCard(hidden = false))
-        
-        // Actualizar estado
-        state.hands.add(secondHand)
-        state.bets.add(bet)
-        state.statuses.add(HandStatus.WAITING)
-        state.doubled.add(false)
-        state.numberOfHands = 2
-        
-        println("✂️ Jugador divide: Mano 1 = ${hand.calculateValue()}, Mano 2 = ${secondHand.calculateValue()}")
-        
-        // Verificar si la primera mano es 21
+        newHand.addCard(deck.dealCard(hidden = false))
+
+        // Insertar la nueva mano justo después de la activa
+        val insertIdx = activeIdx + 1
+        state.hands.add(insertIdx, newHand)
+        state.bets.add(insertIdx, bet)
+        state.statuses.add(insertIdx, HandStatus.WAITING)
+        state.doubled.add(insertIdx, false)
+        state.numberOfHands++
+
+        println("✂️ Split mano ${activeIdx + 1}: ${hand.calculateValue()} / ${newHand.calculateValue()} (total ${state.numberOfHands} manos)")
+
+        // Si la mano activa quedó en 21 al recibir la carta, avanzar
         if (hand.calculateValue() == 21) {
-            state.statuses[0] = HandStatus.STANDING
+            state.statuses[activeIdx] = HandStatus.STANDING
             return handleHandComplete(playerId, estimatePlayerChips(playerId))
         }
-        
+
         return buildGameState(playerId, GamePhase.PLAYER_TURN, estimatePlayerChips(playerId))
     }
 
@@ -354,7 +354,7 @@ class DealerAI(
                     if (dealerBlackjack) {
                         GameResultType.PUSH to 0
                     } else {
-                        GameResultType.BLACKJACK to (bet * 1.5).toInt()
+                        GameResultType.BLACKJACK to (bet * gameSettings.blackjackPayout).toInt()
                     }
                 }
                 dealerBusted -> {
@@ -508,15 +508,17 @@ class DealerAI(
         // Acciones disponibles
         val canHit = phase == GamePhase.PLAYER_TURN && !activeHand.isBusted() && activeScore < 21
         val canStand = phase == GamePhase.PLAYER_TURN && !activeHand.isBusted()
-        val canDouble = phase == GamePhase.PLAYER_TURN && 
-                       activeHand.getCards().size == 2 && 
+        val isOnSplitHand = state.numberOfHands > 1
+        val canDouble = phase == GamePhase.PLAYER_TURN &&
+                       activeHand.getCards().size == 2 &&
                        !activeHand.isBusted() &&
-                       state.bets[state.activeHandIndex] <= playerChips
+                       state.bets[state.activeHandIndex] <= playerChips &&
+                       (!isOnSplitHand || gameSettings.allowDoubleAfterSplit)
         val canSplit = phase == GamePhase.PLAYER_TURN &&
-                      state.numberOfHands == 1 &&
+                      state.numberOfHands < gameSettings.maxSplits + 1 &&
                       activeHand.getCards().size == 2 &&
                       activeHand.getCards()[0].rank.value == activeHand.getCards()[1].rank.value &&
-                      state.bets[0] <= playerChips
+                      state.bets[state.activeHandIndex] <= playerChips
         val canSurrender = phase == GamePhase.PLAYER_TURN &&
                           state.activeHandIndex == 0 &&
                           activeHand.getCards().size == 2 &&

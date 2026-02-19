@@ -777,7 +777,7 @@ private fun BettingControls(
                 .padding(horizontal = 12.dp, vertical = 4.dp)
         ) {
             Text("Manos: ", color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp)
-            listOf(1, 2, 3).forEach { hands ->
+            listOf(1, 2, 3, 4).forEach { hands ->
                 val canAfford = minBet * hands <= playerChips
                 val isSelected = numberOfHands == hands
                 Box(

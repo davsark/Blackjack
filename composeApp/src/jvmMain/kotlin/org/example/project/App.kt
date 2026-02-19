@@ -31,6 +31,13 @@ fun App() {
         // Estados principales
         val uiState by viewModel.uiState.collectAsState()
         val numberOfDecks by viewModel.numberOfDecks.collectAsState()
+
+        // Configuración de reglas
+        val blackjackPayout by viewModel.blackjackPayout.collectAsState()
+        val dealerHitsOnSoft17 by viewModel.dealerHitsOnSoft17.collectAsState()
+        val allowDoubleAfterSplit by viewModel.allowDoubleAfterSplit.collectAsState()
+        val allowSurrender by viewModel.allowSurrender.collectAsState()
+        val maxSplits by viewModel.maxSplits.collectAsState()
         
         // Estados de la mesa
         val tablePhase by viewModel.tablePhase.collectAsState()
@@ -70,6 +77,16 @@ fun App() {
                 ConfigScreen(
                     currentDecks = numberOfDecks,
                     onDecksChange = { viewModel.setNumberOfDecks(it) },
+                    currentBlackjackPayout = blackjackPayout,
+                    onBlackjackPayoutChange = { viewModel.setBlackjackPayout(it) },
+                    currentDealerHitsOnSoft17 = dealerHitsOnSoft17,
+                    onDealerHitsOnSoft17Change = { viewModel.setDealerHitsOnSoft17(it) },
+                    currentAllowDoubleAfterSplit = allowDoubleAfterSplit,
+                    onAllowDoubleAfterSplitChange = { viewModel.setAllowDoubleAfterSplit(it) },
+                    currentAllowSurrender = allowSurrender,
+                    onAllowSurrenderChange = { viewModel.setAllowSurrender(it) },
+                    currentMaxSplits = maxSplits,
+                    onMaxSplitsChange = { viewModel.setMaxSplits(it) },
                     onBack = { viewModel.backToMenu() }
                 )
             }
