@@ -875,64 +875,41 @@ private fun PlayingControls(
     onSplit: () -> Unit,
     onSurrender: () -> Unit
 ) {
-    Column(
+    // Una sola fila: [PEDIR grande] [PLANTARSE] [DOBLAR] [DIVIDIR] [RENDIRSE]
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp)
+            .padding(horizontal = 8.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        // Fila principal
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxWidth()
+        // PEDIR — botón principal, más grande
+        Button(
+            onClick = onHit,
+            enabled = canHit,
+            modifier = Modifier.weight(1.8f).height(64.dp),
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF2ECC71),
+                disabledContainerColor = Color.Gray.copy(alpha = 0.3f)
+            )
         ) {
-            ActionButton(
+            Text(
                 text = "🎴 PEDIR",
-                enabled = canHit,
-                color = Color(0xFF2ECC71),
-                modifier = Modifier.weight(1f),
-                onClick = onHit
-            )
-            ActionButton(
-                text = "✋ PLANTARSE",
-                enabled = canStand,
-                color = Color(0xFFF39C12),
-                modifier = Modifier.weight(1f),
-                onClick = onStand
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (canHit) Color.White else Color.White.copy(alpha = 0.5f)
             )
         }
-        
-        Spacer(modifier = Modifier.height(10.dp))
-        
-        // Fila secundaria
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            ActionButton(
-                text = "💰 DOBLAR",
-                enabled = canDouble,
-                color = Color(0xFF3498DB),
-                modifier = Modifier.weight(1f),
-                small = true,
-                onClick = onDouble
-            )
-            ActionButton(
-                text = "✂️ DIVIDIR",
-                enabled = canSplit,
-                color = Color(0xFF9B59B6),
-                modifier = Modifier.weight(1f),
-                small = true,
-                onClick = onSplit
-            )
-            ActionButton(
-                text = "🏳️ RENDIRSE",
-                enabled = canSurrender,
-                color = Color(0xFFE74C3C),
-                modifier = Modifier.weight(1f),
-                small = true,
-                onClick = onSurrender
-            )
-        }
+
+        // Botones compactos — todos en la misma fila
+        CompactPlayButton("✋", "PLANT.", canStand, Color(0xFFF39C12),
+            Modifier.weight(1f).height(64.dp), onStand)
+        CompactPlayButton("💰", "DOBL.", canDouble, Color(0xFF3498DB),
+            Modifier.weight(1f).height(64.dp), onDouble)
+        CompactPlayButton("✂️", "DIV.", canSplit, Color(0xFF9B59B6),
+            Modifier.weight(1f).height(64.dp), onSplit)
+        CompactPlayButton("🏳️", "REND.", canSurrender, Color(0xFFE74C3C),
+            Modifier.weight(1f).height(64.dp), onSurrender)
     }
 }
 
@@ -961,6 +938,39 @@ private fun ActionButton(
             fontWeight = FontWeight.Bold,
             color = if (enabled) Color.White else Color.White.copy(alpha = 0.5f)
         )
+    }
+}
+
+@Composable
+private fun CompactPlayButton(
+    emoji: String,
+    label: String,
+    enabled: Boolean,
+    color: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier,
+        shape = RoundedCornerShape(10.dp),
+        contentPadding = PaddingValues(4.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = color,
+            disabledContainerColor = Color.Gray.copy(alpha = 0.3f)
+        )
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(emoji, fontSize = 15.sp)
+            Text(
+                text = label,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (enabled) Color.White else Color.White.copy(alpha = 0.5f),
+                textAlign = TextAlign.Center
+            )
+        }
     }
 }
 
