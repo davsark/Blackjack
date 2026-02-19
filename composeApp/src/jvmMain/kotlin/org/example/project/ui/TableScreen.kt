@@ -179,7 +179,7 @@ fun TableScreen(
             // ZONA DE CONTROLES - Cambia según la fase
             // ═══════════════════════════════════════════════════════════════
             Card(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().weight(1f),
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A2E).copy(alpha = 0.95f))
             ) {
@@ -406,11 +406,11 @@ private fun DealerZone(
                 }
             }
         } else {
-            // Placeholder
+            // Placeholder compacto (solo durante la fase de apuesta)
             Box(
                 modifier = Modifier
-                    .width(110.dp)
-                    .height(154.dp)
+                    .width(70.dp)
+                    .height(100.dp)
                     .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
                     .border(2.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
             )
@@ -597,19 +597,8 @@ private fun PlayerZone(
                         )
                     }
                 }
-            } else {
-                // Placeholder cuando no hay cartas
-                Box(
-                    modifier = Modifier
-                        .width(115.dp)
-                        .height(161.dp)
-                        .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
-                        .border(2.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(8.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("?", fontSize = 24.sp, color = Color.White.copy(alpha = 0.5f))
-                }
             }
+            // Cuando showCards=false (fase de apuesta) no mostramos placeholder para liberar espacio
             
             Spacer(modifier = Modifier.height(4.dp))
             
