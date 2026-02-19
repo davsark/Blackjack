@@ -139,8 +139,18 @@ class ClientHandler(
 
         when (message.gameMode) {
             GameMode.PVE -> {
-                // Modo solitario contra el dealer
-                dealerAI = DealerAI(deck, gameSettings)
+                // Modo solitario — usar settings del cliente si las envió
+                val effectiveSettings = message.settings?.let { s ->
+                    gameSettings.copy(
+                        numberOfDecks      = s.numberOfDecks,
+                        blackjackPayout    = s.blackjackPayout,
+                        dealerHitsOnSoft17 = s.dealerHitsOnSoft17,
+                        allowDoubleAfterSplit = s.allowDoubleAfterSplit,
+                        allowSurrender     = s.allowSurrender,
+                        maxSplits          = s.maxSplits
+                    )
+                } ?: gameSettings
+                dealerAI = DealerAI(deck, effectiveSettings)
                 sendMessage(ServerMessage.JoinConfirmation(
                     playerId = playerId,
                     message = "Bienvenido $playerName. Modo: Jugador vs Dealer",

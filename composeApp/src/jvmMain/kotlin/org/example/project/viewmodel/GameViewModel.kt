@@ -94,6 +94,21 @@ class GameViewModel : ViewModel() {
     private val _numberOfDecks = MutableStateFlow(1)
     val numberOfDecks: StateFlow<Int> = _numberOfDecks.asStateFlow()
 
+    private val _blackjackPayout = MutableStateFlow(1.5)
+    val blackjackPayout: StateFlow<Double> = _blackjackPayout.asStateFlow()
+
+    private val _dealerHitsOnSoft17 = MutableStateFlow(false)
+    val dealerHitsOnSoft17: StateFlow<Boolean> = _dealerHitsOnSoft17.asStateFlow()
+
+    private val _allowDoubleAfterSplit = MutableStateFlow(true)
+    val allowDoubleAfterSplit: StateFlow<Boolean> = _allowDoubleAfterSplit.asStateFlow()
+
+    private val _allowSurrender = MutableStateFlow(true)
+    val allowSurrender: StateFlow<Boolean> = _allowSurrender.asStateFlow()
+
+    private val _maxSplits = MutableStateFlow(3)
+    val maxSplits: StateFlow<Int> = _maxSplits.asStateFlow()
+
     // Modo de juego y nombre
     private var selectedGameMode: GameMode = GameMode.PVE
     private var playerName: String = ""
@@ -164,7 +179,7 @@ class GameViewModel : ViewModel() {
         this.selectedGameMode = gameMode
         
         viewModelScope.launch {
-            val message = ClientMessage.JoinGame(playerName, gameMode)
+            val message = ClientMessage.JoinGame(playerName, gameMode, settings = buildGameSettings())
             gameClient.sendMessage(message)
             // Esperamos confirmación del servidor
         }
@@ -302,9 +317,21 @@ class GameViewModel : ViewModel() {
         _uiState.value = GameUiState.ShowingConfig
     }
 
-    fun setNumberOfDecks(decks: Int) {
-        _numberOfDecks.value = decks
-    }
+    fun setNumberOfDecks(decks: Int) { _numberOfDecks.value = decks }
+    fun setBlackjackPayout(payout: Double) { _blackjackPayout.value = payout }
+    fun setDealerHitsOnSoft17(value: Boolean) { _dealerHitsOnSoft17.value = value }
+    fun setAllowDoubleAfterSplit(value: Boolean) { _allowDoubleAfterSplit.value = value }
+    fun setAllowSurrender(value: Boolean) { _allowSurrender.value = value }
+    fun setMaxSplits(value: Int) { _maxSplits.value = value }
+
+    private fun buildGameSettings() = GameSettings(
+        numberOfDecks = _numberOfDecks.value,
+        blackjackPayout = _blackjackPayout.value,
+        dealerHitsOnSoft17 = _dealerHitsOnSoft17.value,
+        allowDoubleAfterSplit = _allowDoubleAfterSplit.value,
+        allowSurrender = _allowSurrender.value,
+        maxSplits = _maxSplits.value
+    )
 
     fun backToGame() {
         _uiState.value = GameUiState.AtTable
