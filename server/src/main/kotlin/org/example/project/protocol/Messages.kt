@@ -14,7 +14,8 @@ sealed class ClientMessage {
     data class JoinGame(
         val playerName: String,
         val gameMode: GameMode,
-        val buyIn: Int = 1000
+        val buyIn: Int = 1000,
+        val settings: GameSettings? = null
     ) : ClientMessage()
 
     /**
