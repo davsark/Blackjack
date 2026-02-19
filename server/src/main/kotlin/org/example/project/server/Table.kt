@@ -94,9 +94,10 @@ class Table(
             return false
         }
         
-        if (tablePhase != TableGamePhase.WAITING_FOR_PLAYERS && 
-            tablePhase != TableGamePhase.ROUND_END) {
-            // No se puede unir en medio de una ronda
+        if (tablePhase != TableGamePhase.WAITING_FOR_PLAYERS &&
+            tablePhase != TableGamePhase.ROUND_END &&
+            tablePhase != TableGamePhase.BETTING) {
+            // No se puede unir en medio de una ronda activa
             return false
         }
 
@@ -106,16 +107,26 @@ class Table(
         clientCallbacks[playerId] = callback
 
         println("👤 $name se une a mesa $tableId (${players.size}/$maxPlayers)")
-        
-        // Notificar a todos los jugadores
-        broadcastTableState()
-        
-        // Si hay al menos 1 jugador, puede empezar (para testing solo)
-        // En producción podrías requerir 2+
-        if (players.size >= 1 && tablePhase == TableGamePhase.WAITING_FOR_PLAYERS) {
-            startBettingPhase()
+
+        if (tablePhase == TableGamePhase.BETTING) {
+            // El jugador llega mientras otros están apostando — ponerlo a apostar también
+            player.status = PlayerStatus.BETTING
+            broadcastTableState()
+            sendToPlayer(playerId, ServerMessage.RequestBet(
+                minBet = gameSettings.minBet,
+                maxBet = minOf(gameSettings.maxBet, player.chips),
+                currentChips = player.chips
+            ))
+        } else {
+            // Notificar a todos los jugadores
+            broadcastTableState()
+
+            // Si hay al menos 1 jugador, iniciar fase de apuestas
+            if (players.size >= 1 && tablePhase == TableGamePhase.WAITING_FOR_PLAYERS) {
+                startBettingPhase()
+            }
         }
-        
+
         return true
     }
 

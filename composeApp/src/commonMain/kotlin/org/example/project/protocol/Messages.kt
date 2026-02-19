@@ -21,7 +21,7 @@ sealed class ClientMessage {
     /**
      * El jugador realiza una apuesta (soporta múltiples manos)
      * @param amount Apuesta por mano
-     * @param numberOfHands Número de manos a jugar (1-3)
+     * @param numberOfHands Número de manos a jugar (1-4)
      */
     @Serializable
     data class PlaceBet(

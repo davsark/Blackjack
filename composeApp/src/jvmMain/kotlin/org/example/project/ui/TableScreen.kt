@@ -5,8 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -630,38 +628,25 @@ private fun BettingControls(
 ) {
     val actualMaxBet = minOf(maxBet, playerChips / numberOfHands)
     val totalBet = selectedBet * numberOfHands
-    val scrollState = rememberScrollState()
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .verticalScroll(scrollState)
-            .padding(20.dp),
+            .padding(10.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Título
-        Text(
-            text = "💰 REALIZA TU APUESTA",
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFFFFD700),
-            letterSpacing = 2.sp
-        )
-        
-        Spacer(modifier = Modifier.height(20.dp))
-        
         // Fichas de casino - clickeables para agregar
         Text(
             text = "Toca una ficha para agregarla:",
             fontSize = 12.sp,
             color = Color.White.copy(alpha = 0.6f)
         )
-        
-        Spacer(modifier = Modifier.height(8.dp))
-        
+
+        Spacer(modifier = Modifier.height(4.dp))
+
         Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.padding(vertical = 8.dp)
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.padding(vertical = 4.dp)
         ) {
             listOf(
                 10 to Color(0xFF2196F3),   // Azul
@@ -673,13 +658,13 @@ private fun BettingControls(
                 val canAfford = selectedBet + chip <= actualMaxBet
                 Box(
                     modifier = Modifier
-                        .size(56.dp)
+                        .size(48.dp)
                         .clip(CircleShape)
                         .background(
                             if (canAfford) color else Color.Gray.copy(alpha = 0.3f)
                         )
                         .border(3.dp, Color(0xFFFFD700), CircleShape)
-                        .clickable(enabled = canAfford) { 
+                        .clickable(enabled = canAfford) {
                             onBetChange(minOf(selectedBet + chip, actualMaxBet))
                         },
                     contentAlignment = Alignment.Center
@@ -693,16 +678,16 @@ private fun BettingControls(
                 }
             }
         }
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
+
+        Spacer(modifier = Modifier.height(8.dp))
+
         // Apuesta actual con controles +/-
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
             modifier = Modifier
                 .background(Color.Black.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
-                .padding(horizontal = 24.dp, vertical = 12.dp)
+                .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
             // Botón reset
             Box(
@@ -739,7 +724,7 @@ private fun BettingControls(
             ) {
                 Text(
                     text = "$selectedBet",
-                    fontSize = 42.sp,
+                    fontSize = 32.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF2ECC71)
                 )
@@ -781,15 +766,15 @@ private fun BettingControls(
             }
         }
         
-        Spacer(modifier = Modifier.height(16.dp))
-        
+        Spacer(modifier = Modifier.height(8.dp))
+
         // Selector de manos (más compacto)
         Row(
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .background(Color.Black.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
-                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .padding(horizontal = 12.dp, vertical = 4.dp)
         ) {
             Text("Manos: ", color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp)
             listOf(1, 2, 3, 4).forEach { hands ->
@@ -825,8 +810,8 @@ private fun BettingControls(
             }
         }
         
-        Spacer(modifier = Modifier.height(20.dp))
-        
+        Spacer(modifier = Modifier.height(8.dp))
+
         // Botones de acción
         Row(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -836,21 +821,21 @@ private fun BettingControls(
             if (lastBet in minBet..minOf(maxBet, playerChips)) {
                 Button(
                     onClick = onRepeatLastBet,
-                    modifier = Modifier.weight(1f).height(54.dp),
+                    modifier = Modifier.weight(1f).height(48.dp),
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3498DB))
                 ) {
-                    Text("🔄 $lastBet", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("🔄 $lastBet", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 }
             }
-            
+
             // Apostar
             Button(
                 onClick = onPlaceBet,
                 enabled = totalBet <= playerChips && selectedBet >= minBet,
                 modifier = Modifier
                     .weight(if (lastBet in minBet..minOf(maxBet, playerChips)) 1.5f else 2f)
-                    .height(54.dp),
+                    .height(48.dp),
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFF2ECC71),
@@ -860,18 +845,10 @@ private fun BettingControls(
                 Text(
                     text = "🎴 ¡REPARTIR!",
                     fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
+                    fontSize = 17.sp
                 )
             }
         }
-        
-        // Info de fichas
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "Fichas disponibles: $playerChips",
-            fontSize = 12.sp,
-            color = Color.White.copy(alpha = 0.5f)
-        )
     }
 }
 
